@@ -27,26 +27,28 @@ export function renderStart(root, ctx){
   statsBtn.addEventListener('click', ()=>{ if(ctx.onShowStats) ctx.onShowStats(); });
   container.appendChild(statsBtn);
 
-  // Debug toggle (small floating button) - shows debug panel when clicked
-  const debugBtn = el('button',{class:'btn debug-btn floating icon', style:'position:fixed;left:18px;bottom:18px;z-index:10030', title:'Debug'},['🐞']);
-  let debugOpen = false;
-  const debugPanel = el('div',{class:'panel debug-panel', style:'position:fixed;left:18px;bottom:64px;z-index:10030;display:none;padding:8px;'},[]);
-  const grantBtn = el('button',{class:'btn'},['Grant 10000 IP']);
-  grantBtn.addEventListener('click',()=>{ if(ctx.onDebugGrant) ctx.onDebugGrant(); else if(ctx.setMessage) ctx.setMessage('No debug handler'); });
-  const unlockBtn = el('button',{class:'btn'},['Unlock All Characters & Summons']);
-  unlockBtn.style.display = 'block';
-  unlockBtn.style.marginTop = '8px';
-  unlockBtn.addEventListener('click',()=>{ if(ctx.onDebugUnlock) ctx.onDebugUnlock(); else if(ctx.setMessage) ctx.setMessage('No debug handler'); });
-  debugPanel.appendChild(grantBtn);
-  debugPanel.appendChild(unlockBtn);
-  const unlockTownBtn = el('button',{class:'btn'},['Unlock Town (grant access to Daggerford)']);
-  unlockTownBtn.style.display = 'block';
-  unlockTownBtn.style.marginTop = '8px';
-  unlockTownBtn.addEventListener('click',()=>{ if(ctx.onDebugUnlockTown) ctx.onDebugUnlockTown(); else if(ctx.setMessage) ctx.setMessage('No debug handler'); });
-  debugPanel.appendChild(unlockTownBtn);
-  debugBtn.addEventListener('click',()=>{ debugOpen = !debugOpen; debugPanel.style.display = debugOpen ? 'block' : 'none'; });
-  container.appendChild(debugBtn);
-  container.appendChild(debugPanel);
+  // Debug UI (disabled by default). Enable by setting `ctx.meta.debugEnabled = true`.
+  if(ctx.meta && ctx.meta.debugEnabled){
+    const debugBtn = el('button',{class:'btn debug-btn floating icon', style:'position:fixed;left:18px;bottom:18px;z-index:10030', title:'Debug'},['🐞']);
+    let debugOpen = false;
+    const debugPanel = el('div',{class:'panel debug-panel', style:'position:fixed;left:18px;bottom:64px;z-index:10030;display:none;padding:8px;'},[]);
+    const grantBtn = el('button',{class:'btn'},['Grant 10000 IP']);
+    grantBtn.addEventListener('click',()=>{ if(ctx.onDebugGrant) ctx.onDebugGrant(); else if(ctx.setMessage) ctx.setMessage('No debug handler'); });
+    const unlockBtn = el('button',{class:'btn'},['Unlock All Characters & Summons']);
+    unlockBtn.style.display = 'block';
+    unlockBtn.style.marginTop = '8px';
+    unlockBtn.addEventListener('click',()=>{ if(ctx.onDebugUnlock) ctx.onDebugUnlock(); else if(ctx.setMessage) ctx.setMessage('No debug handler'); });
+    debugPanel.appendChild(grantBtn);
+    debugPanel.appendChild(unlockBtn);
+    const unlockTownBtn = el('button',{class:'btn'},['Unlock Town (grant access to Daggerford)']);
+    unlockTownBtn.style.display = 'block';
+    unlockTownBtn.style.marginTop = '8px';
+    unlockTownBtn.addEventListener('click',()=>{ if(ctx.onDebugUnlockTown) ctx.onDebugUnlockTown(); else if(ctx.setMessage) ctx.setMessage('No debug handler'); });
+    debugPanel.appendChild(unlockTownBtn);
+    debugBtn.addEventListener('click',()=>{ debugOpen = !debugOpen; debugPanel.style.display = debugOpen ? 'block' : 'none'; });
+    container.appendChild(debugBtn);
+    container.appendChild(debugPanel);
+  }
 
   const info = el('div',{class:'hud'},[]);
   const ipAmount = (ctx && ctx.meta && typeof ctx.meta.ip !== 'undefined') ? ctx.meta.ip : 0;
