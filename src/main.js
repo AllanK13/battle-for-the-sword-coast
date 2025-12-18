@@ -90,6 +90,47 @@ async function loadData(){
     '/public/data/upgrades.json',
     '/Upgrades.clean.json','./Upgrades.clean.json','/Upgrades.json'
   ]);
+
+  // Fallback: if any resource failed to load, and we're on a GitHub Pages project
+  // site (e.g. username.github.io/repo/), try fetching the file from
+  // raw.githubusercontent.com using the repo name and common branches.
+  async function tryRawFallback(resource, destVarName){
+    if(resource) return resource;
+    try{
+      if(typeof window === 'undefined' || !window.location) return resource;
+      const host = window.location.hostname || '';
+      if(!host.endsWith('.github.io')) return resource;
+      const owner = host.split('.')[0];
+      const repo = (window.location.pathname || '').split('/').filter(Boolean)[0] || '';
+      if(!owner || !repo) return resource;
+      const branches = ['main','master'];
+      const candidates = [
+        'data/' + destVarName + '.json',
+        'public/data/' + destVarName + '.json',
+        destVarName.charAt(0).toUpperCase() + destVarName.slice(1) + '.clean.json',
+        destVarName.charAt(0).toUpperCase() + destVarName.slice(1) + '.json'
+      ];
+      for(const b of branches){
+        for(const p of candidates){
+          const url = `https://raw.githubusercontent.com/${owner}/${repo}/${b}/${p}`;
+          try{
+            const resp = await fetch(url);
+            if(!resp.ok) continue;
+            const j = await resp.json();
+            return j;
+          }catch(e){ /* ignore and try next */ }
+        }
+      }
+    }catch(e){ /* ignore */ }
+    return resource;
+  }
+
+  // Map variable names to resource variables
+  const resolvedCards = await tryRawFallback(cards, 'cards');
+  const resolvedSummons = await tryRawFallback(summons, 'summons');
+  const resolvedEnemies = await tryRawFallback(enemies, 'enemies');
+  const resolvedUpgrades = await tryRawFallback(upgrades, 'upgrades');
+  data.cards = resolvedCards; data.summons = resolvedSummons; data.enemies = resolvedEnemies; data.upgrades = resolvedUpgrades;
   data.cards = cards; data.summons = summons; data.enemies = enemies; data.upgrades = upgrades;
 }
 
