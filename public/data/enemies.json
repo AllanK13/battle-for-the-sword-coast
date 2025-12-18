@@ -1,0 +1,20 @@
+[
+  {
+    "name": "Twig Blight",
+    "ip_reward": 1,
+    "hp": 18,
+    "id": "twig_blight"
+  },
+  {
+    "name": "Wiltherp",
+    "ip_reward": 3,
+    "hp": 30,
+    "id": "wiltherp"
+  },
+  {
+    "name": "Red Wizard",
+    "ip_reward": 5,
+    "hp": 8,
+    "id": "red_wizard"
+  }
+]

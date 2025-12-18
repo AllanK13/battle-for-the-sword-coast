@@ -1,0 +1,89 @@
+[
+  {
+    "name": "Meepo",
+    "type": "DPS",
+    "hp": 2.0,
+    "ability": "Whip: 1 damage",
+    "actionType": "attack",
+    "tier": 1,
+    "slot_cost": 1.0,
+    "ip_cost": 0,
+    "id": "meepo",
+    "starter": true
+  },
+  {
+    "name": "Cree (child)",
+    "type": "DPS",
+    "hp": 2.0,
+    "ability": "Greatsword: 1 damage",
+    "actionType": "attack",
+    "tier": 1,
+    "slot_cost": 1.0,
+    "ip_cost": 0,
+    "id": "cree_kid",
+    "starter": true
+  },
+  {
+    "name": "Erky Timbers",
+    "type": "Healer",
+    "hp": 3.0,
+    "ability": "Cure Wounds: Heal one creature for 1 HP",
+    "actionType": "heal",
+    "tier": 1,
+    "slot_cost": 1.0,
+    "ip_cost": 0,
+    "id": "erky_timbers",
+    "starter": true
+  }
+  ,
+  {
+    "name": "Whiph",
+    "type": "DPS",
+    "hp": 3.0,
+    "ability": "Booming Blade: 2 damage",
+    "actionType": "attack",
+    "tier": 1,
+    "slot_cost": 1.0,
+    "ip_cost": 5,
+    "id": "whiph",
+    "starter": false
+  }
+  ,
+  {
+    "name": "Ferrek",
+    "type": "DPS",
+    "hp": 3.0,
+    "ability": "Polearm Master: 2 damage",
+    "actionType": "attack",
+    "tier": 1,
+    "slot_cost": 1.0,
+    "ip_cost": 5,
+    "id": "ferrek",
+    "starter": false
+  }
+  ,
+  {
+    "name": "Piter",
+    "type": "Support",
+    "hp": 4.0,
+    "ability": "Help: Automatically targeted by next single target attack",
+    "actionType": "support",
+    "tier": 1,
+    "slot_cost": 1.0,
+    "ip_cost": 5,
+    "id": "piter",
+    "starter": false
+  },
+  {
+    "name": "Shalendra",
+    "type": "Support",
+    "hp": 5.0,
+    "ability": "Refresh Volo's power",
+    "actionType": "support",
+    "tier": 1,
+    "slot_cost": 1.0,
+    "ip_cost": 5,
+    "id": "shalendra",
+    "starter": false
+  }
+]

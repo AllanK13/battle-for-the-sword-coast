@@ -1,0 +1,885 @@
+:root{
+  --bg:#0f1724;
+  --panel:#0b2233;
+  --accent:#86efac;
+  --muted:#94a3b8;
+  --ui-scale: 1;
+}
+html,body{height:100%;margin:0;font-family:system-ui,Segoe UI,Roboto,Arial}
+body{background:linear-gradient(180deg,var(--bg),#071024);color:#e6eef8}
+#app{padding:20px;max-width:1100px;margin:0 auto}
+.row{display:flex;gap:12px;align-items:center}
+.card-grid{display:flex;gap:12px;flex-wrap:wrap}
+.card{background:linear-gradient(180deg,#0d2a3b,#023047);padding:12px;border-radius:12px;color:white;box-sizing:border-box;width:198px;height:342px;display:flex;flex-direction:column}
+.card-wrap{width:198px;box-sizing:border-box;display:flex;flex-direction:column}
+.btn{background:var(--accent);color:#032; border:none;padding:10px 14px;border-radius:6px;cursor:pointer}
+/* Prominent stats button used on the start screen */
+.stats-btn{
+  background: linear-gradient(180deg,#00ff40,#0c491e);
+  color: #062;
+  padding:12px 20px;
+  font-size:16px;
+  font-weight:900;
+  border-radius:14px;
+  border:2px solid rgba(0,0,0,0.25);
+  box-shadow: 0 10px 26px rgba(0,0,0,0.45), inset 0 -2px 0 rgba(255,255,255,0.12);
+  cursor:pointer;
+  transition: transform 160ms ease, box-shadow 160ms ease, filter 160ms ease;
+}
+.stats-btn:active{ transform:translateY(-1px); }
+.stats-btn:focus{ outline:3px solid rgba(255,215,102,0.18); }
+/* Floating stats button container override (ensures consistent placement) */
+.stats-btn.floating{
+  border-radius:12px;
+  padding:5px 7px;
+}
+
+
+.stats-btn.icon:hover{ transform:translateY(-3px); box-shadow: 0 16px 36px rgba(0,0,0,0.5); filter:brightness(1.02); }
+.stats-btn.icon:active{ transform:translateY(-1px); }
+
+/* Visit Town (Upgrades) button with left icon */
+.upgrades-btn{display:inline-flex;align-items:center;gap:10px;padding:10px 16px;border-radius:12px;background:linear-gradient(180deg,#fbcf79,#f59e0b);color:#062;font-weight:900;border:2px solid rgba(0,0,0,0.12);box-shadow:0 10px 26px rgba(0,0,0,0.3);}
+.upgrades-btn .btn-icon-left{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:999px;background:linear-gradient(180deg,#fff3bf,#ffd166);box-shadow:inset 0 -2px 0 rgba(255,255,255,0.6),0 6px 14px rgba(0,0,0,0.18);font-size:18px}
+.upgrades-btn .btn-label{font-weight:900;color:#062}
+.upgrades-btn:hover{transform:translateY(-3px);box-shadow:0 16px 36px rgba(0,0,0,0.38);filter:brightness(1.02)}
+.upgrades-btn:active{transform:translateY(-1px)}
+
+/* Upgrades screen: show character and summon tiles without the default blue card background */
+.upgrades-screen .card,
+.upgrades-screen .card-wrap .card,
+.upgrades-container .card-grid .card{
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
+/* IP display on Upgrades screen */
+.upgrades-screen .ip-display{
+  display:inline-flex;
+  align-items:center;
+  gap:10px;
+  padding:8px 12px;
+  border-radius:10px;
+  background:linear-gradient(90deg,#fbbf24,#f97316);
+  color:#062;
+  font-weight:900;
+  box-shadow:0 10px 26px rgba(0,0,0,0.35);
+  margin-bottom:8px;
+}
+.upgrades-screen .ip-display .ip-value{
+  background:rgba(255,255,255,0.95);
+  color:#1f2937;
+  padding:4px 8px;
+  border-radius:6px;
+  font-weight:900;
+}
+
+/* Metagame upgrades: smaller boxes, side-by-side */
+.upgrades-screen .meta-grid{
+  display:flex;
+  flex-wrap:wrap;
+  gap:12px;
+  align-items:flex-start;
+}
+.upgrades-screen .meta-grid .card{
+  width:160px;
+  min-height:80px;
+  padding:8px 10px;
+  border-radius:8px;
+  display:flex;
+  flex-direction:column;
+  justify-content:space-between;
+  box-shadow:0 6px 18px rgba(0,0,0,0.25);
+}
+.upgrades-screen .meta-grid .card .card-name{font-size:14px;margin:0 0 6px 0}
+.upgrades-screen .meta-grid .card button{padding:6px 8px;font-size:13px}
+
+/* Stats screen styling */
+.stats-screen{max-width:880px;margin:20px auto;padding:18px;display:flex;flex-direction:column;gap:14px;align-items:stretch}
+.stats-title{font-size:28px;text-align:center;color:var(--accent);margin:0}
+.stats-overview{display:flex;gap:18px;justify-content:center;flex-wrap:wrap;padding:12px;border-radius:10px;background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(0,0,0,0.06));}
+.stats-overview-item{font-size:16px;color:#e6eef8}
+.section-title{font-size:20px;color:var(--accent);margin:8px 0 4px 0;text-align:left}
+.stats-list{width:100%;max-width:840px;background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(0,0,0,0.03));padding:10px;border-radius:8px;box-shadow:0 8px 20px rgba(0,0,0,0.35)}
+.stats-row{display:flex;justify-content:space-between;padding:8px 10px;border-bottom:1px solid rgba(255,255,255,0.03);align-items:center}
+.stats-row:last-child{border-bottom:none}
+.stats-key{font-weight:700;color:#f8f2df}
+.stats-val{color:#86efac;font-weight:800}
+.most-used{display:flex;align-items:center;justify-content:center;padding:10px;border-radius:8px;background:linear-gradient(180deg,rgba(134,239,172,0.06),rgba(0,0,0,0.03));}
+
+/* Back button on the stats screen */
+.stats-back-btn{background:linear-gradient(180deg,#2563eb,#1e40af);color:#fff;border:none;padding:10px 16px;border-radius:10px;font-weight:800;align-self:center;margin-top:12px;box-shadow:0 10px 22px rgba(30,64,175,0.28);}
+.stats-back-btn:hover{transform:translateY(-3px);box-shadow:0 14px 28px rgba(30,64,175,0.36)}
+
+/* Delete save button */
+.delete-save-btn{background:linear-gradient(180deg,#ef4444,#b91c1c);color:#fff;border:none;padding:8px 12px;border-radius:10px;font-weight:800;box-shadow:0 8px 20px rgba(185,28,28,0.28)}
+.delete-save-btn:hover{transform:translateY(-3px);box-shadow:0 12px 26px rgba(185,28,28,0.36)}
+.hud{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:transparent;border-radius:6px;margin-bottom:12px}
+.panel{background:transparent;padding:12px;border-radius:8px}
+.muted{color:var(--muted)}
+  .card-body{display:flex;flex-direction:column;gap:6px;overflow:hidden;padding-top:0}
+.card-stat{font-size:16px;font-weight:700;font-family:Segoe UI, Roboto, "Trebuchet MS", Georgia, serif;color:var(--accent);text-shadow:0 1px 0 rgba(0,0,0,0.6);letter-spacing:0.4px}
+
+/* Force enemy-specific stat text to red (overrides general .card-stat) */
+.enemy-area .card .card-stat,
+.enemy-area .enemy-hp{
+  color: #e63b3bdc;
+  -webkit-text-stroke: 0.6px #000;
+}
+.card-desc{font-size:14px;font-style:italic;white-space:normal;word-break:break-word;overflow:auto;margin-top:6px;color:#e6f3ea}
+
+/* slot and enemy HP styling */
+.slot-header{font-size:15px;font-weight:800;color:var(--accent);font-family:Segoe UI, Roboto, "Trebuchet MS", Georgia, serif;text-shadow:0 1px 0 rgba(0,0,0,0.6);margin-bottom:6px}
+.enemy-hp{font-size:24px;font-weight:900;color:#e63b3bdc;font-family:Segoe UI, Roboto, "Trebuchet MS", Georgia, serif;text-shadow:0 6px 14px rgba(0,0,0,0.85);margin:6px 0;line-height:0.9}
+.card img{border-radius:10px;margin-bottom:8px;/* responsive: fallback for images without explicit class */
+  max-height:calc(100% - 72px);object-fit:contain;width:92%;height:auto;display:block;margin:0 auto}
+
+/* Prefer class-based image sizing so inline attributes are avoided in renderer */
+.card-image{border-radius:10px;margin-bottom:8px;max-height:calc(100% - 72px);object-fit:contain;width:92%;height:auto;display:block;margin:0 auto}
+.summons-small{display:flex;gap:8px;overflow-x:auto;padding:8px;align-items:flex-start;min-height:0}
+.summons-wrap{min-height:auto;padding:8px 6px;margin-top:12px;width:100%;max-height:none;box-shadow:none}
+.summons-small .card{width:162px;flex:0 0 auto;margin:0;border-radius:10px;display:flex;flex-direction:column;padding:10px;height:auto}
+.summons-small .card img{max-height:calc(100% - 60px);object-fit:contain;width:100%;height:auto;border-radius:8px;margin-bottom:8px}
+.summons-small .card .card-body{flex:0 0 auto;min-height:0;overflow:visible}
+.ummons-small .card .btn{margin-top:8px;flex-shrink:0}
+.summons-small .card .btn{display:block;width:100%;box-sizing:border-box;padding:8px 10px;margin-top:8px;flex-shrink:0}
+
+/* Responsive character card sizing — follow enemy breakpoints so cards resize together */
+.card{transition: width 200ms ease, height 200ms ease }
+@media (min-width:1001px){
+  .card{width:220px;height:380px}
+  .card-wrap{width:220px}
+}
+@media (max-width:1000px){
+  .card{width:180px;height:320px}
+  .card-wrap{width:180px}
+}
+@media (max-width:720px){
+  .card{width:160px;height:300px}
+  .card-wrap{width:160px}
+}
+@media (max-width:420px){
+  .card{width:140px;height:260px}
+  .card-wrap{width:140px}
+}
+
+/* Summons title styling */
+.summons-title{font-size:18px;text-align:left;color:var(--accent);font-weight:800;letter-spacing:0.6px;margin:6px 0;text-shadow:0 1px 0 rgba(0,0,0,0.6)}
+
+/* Hand area title */
+.hand-title{font-size:18px;color:var(--accent);font-weight:800;margin:0 0 8px 0}
+
+/* spacing for End Turn button so it doesn't sit flush against the hand */
+.end-turn-btn{margin-top:14px}
+
+/* Make the End Turn button smaller on the battle screen */
+.battle-panel .end-turn-btn{
+  padding:12px 18px;
+  font-size:18px;
+  min-width:140px;
+  align-self:center;
+  width:auto;
+  border-radius:10px;
+  box-shadow:0 10px 22px rgba(120,20,20,0.32);
+  background:linear-gradient(180deg,#c53030,#7f1d1d);
+  color:#fff;
+  font-weight:800;
+}
+.battle-panel .end-turn-btn:hover{transform:translateY(-2px);box-shadow:0 14px 28px rgba(120,20,20,0.42)}
+
+/* Battle panel layout: playfield left, enemy right */
+.battle-panel{display:flex;flex-direction:column;gap:12px}
+
+/* Scale wrapper: applies a uniform scale to all battle elements using the --ui-scale variable.
+   The JS sets --ui-scale on resize so the entire battle UI scales smoothly. */
+.battle-scale{
+  transform-origin: top center;
+  transform: scale(var(--ui-scale, 1));
+  transition: transform 140ms ease;
+  display:flex;
+  justify-content:center;
+}
+.battle-scale .battle-panel{ /* base design width to scale from */
+  width: 1100px; /* matches main content max-width; scaled down on small viewports */
+}
+
+/* top row contains playfield on the left and enemy on the right */
+.battle-top{display:flex;gap:18px;align-items:flex-start}
+
+/* Nudge the playfield upward so the spaces sit higher on the screen */
+.battle-top .playfield{margin-top:-100px}
+
+/* Playfield: left column. front slots stacked vertically and positioned close to the enemy; back slot sits behind them */
+.playfield{width:48%;display:grid;grid-template-columns:auto 1fr;gap:20px;position:relative;min-height:220px}
+/* left: back slot (slot 3) placed in column 1 and vertically centered relative to the front stack */
+.playfield-back{grid-column:1;display:flex;justify-content:center;align-items:center;position:relative;min-width:260px;align-self:center}
+/* right: front column (slots 1 & 2) stacked, placed in column 2 */
+.playfield-front{grid-column:2;display:flex;flex-direction:column;gap:8px;align-items:flex-start;margin-left:0}
+
+/* Extra space specifically between slot 0 and slot 1 so action buttons fit below the card */
+.playfield-front > .card-wrap:first-child{margin-bottom:12px}
+
+/* Make playfield wrappers match the card sizing so cards don't overflow or overlap */
+  .playfield .card-wrap{width:200px}
+  .playfield .card{width:100%;}
+  .playfield .card{height:240px}
+  .playfield .card .card-image{max-height:calc(100% - 52px) !important;width:90%;margin:0 auto;object-fit:contain}
+/* Ensure action/defend buttons for playfield slots sit below the character card and are centered */
+.playfield .card-wrap{display:flex;flex-direction:column;align-items:stretch;gap:4px;padding:0 !important}
+.playfield .card-wrap .row{width:100%;justify-content:center;margin-top:50px;display:flex;gap:8px;align-items:center}
+.playfield .card{flex:0 0 auto;margin-bottom:12px}
+.playfield .card-wrap .row .btn{min-width:100px}
+.playfield .card-wrap .row .btn.slot-action{min-width:88px;padding:6px 10px;font-size:14px}
+.playfield .card-wrap .row .btn.dodge-btn{min-width:88px;padding:6px 10px;font-size:14px}
+.playfield .card{width:100%;}
+.playfield-front .card{position:relative;z-index:3}
+.playfield-back .card{position:relative;z-index:1}
+
+/* Black border around playfield slots for clear outlining */
+.playfield .card{
+  border: none;
+  /* remove the visible boxed panel for playfield slots and make them transparent
+     so the page background shows through and character images sit without white boxes */
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+}
+
+/* ensure any inner `.card` tiles inside the playfield also don't show their own panel */
+.playfield .card .card{
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
+/* Ensure playfield cards layout vertically so the image can flexibly fill available space */
+.playfield .card{display:flex;flex-direction:column}
+.playfield .card{display:flex;flex-direction:column;height:220px}
+.playfield .card .card-image{flex:1 1 auto;max-height:calc(100% - 44px) !important;width:96%;margin:0 auto;object-fit:contain}
+.playfield .card .card-body{flex:0 0 auto}
+
+/* Reduce vertical spacing between name, image, and stats on playfield cards */
+.playfield .card-name{margin:0;font-size:16px;line-height:1}
+.playfield .card .card-image{margin:0}
+.playfield .card .card-body{gap:0}
+
+/* Empty playfield placeholder: center text in the same space a card would occupy */
+.playfield .card-wrap.empty-slot{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  min-height:240px; /* matches .playfield .card height */
+  padding:0 !important;
+}
+.playfield .card-wrap.empty-slot .empty-label{
+  color:var(--muted);
+  font-weight:800;
+  font-size:16px;
+  text-align:center;
+}
+
+/* Enemy area: center and enlarge the enemy card */
+.enemy-area{
+  width:36%;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  align-items:center;
+  gap: 36px;
+  margin:18px 0 8px 0;
+}
+.enemy-area .card{
+  /* smaller wrapper */
+  width:280px;
+  height:480px;
+  padding:5px; /* slightly reduced padding so image can fill more space */
+  border-radius:10px;
+  background:linear-gradient(180deg, rgba(5,10,20,0.45), rgba(3,8,15,0.25));
+  box-shadow:0 10px 28px rgba(2,6,20,0.55);
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+}
+.enemy-area .card img{
+  /* let the image fill most of the card area */
+  max-height:calc(100% - 40px);
+  width:92%;
+  display:block;
+  margin:0 auto;
+  object-fit:contain;
+}
+
+/* Target the enemy card's HP stat (first .card-stat inside the card-body) and make it very large */
+.enemy-area .card .card-body .card-stat:first-child{
+  font-size:198px !important;
+  font-weight:900 !important;
+  color:#e63b3bdc !important;
+  line-height:0.9 !important;
+  text-shadow:0 6px 14px rgba(0,0,0,0.85) !important;
+}
+
+@media (max-width:1000px){
+  .enemy-area .card{ width:220px; height:330px; }
+  .enemy-area .card img{ max-height:calc(100% - 12px); }
+}
+@media (max-width:720px){
+  .enemy-area .card{ width:200px; height:300px; }
+  .enemy-area .card img{ max-height:calc(100% - 10px); }
+}
+@media (max-width:420px){
+  .enemy-area .card{ width:180px; height:260px; }
+  .enemy-area .card img{ max-height:calc(100% - 8px); }
+}
+
+
+/* Ensure End Turn inside the enemy column is centered and smaller like other buttons */
+.enemy-area .end-turn-btn{
+  margin-top:80px;
+  align-self:center;
+  padding:12px 18px;
+  font-size:18px;
+  min-width:140px;
+  border-radius:10px;
+  background:linear-gradient(180deg,#c53030,#7f1d1d);
+  color:#fff;
+  box-shadow:0 10px 22px rgba(120,20,20,0.32);
+  font-weight:800;
+}
+
+@media (max-width:800px){
+  .enemy-area .card{ width:260px; height:380px; }
+  .enemy-area .card img{ max-height:calc(100% - 8px); }
+}
+
+@media (max-width:420px){
+  .enemy-area .card{ width:240px; height:320px; }
+  .enemy-area .card img{ max-height:calc(100% - 8px); }
+}
+
+/* Strong override to ensure enemy image fills most of its card wrapper */
+.enemy-area > .card img{
+  max-height: calc(100% - 16px) !important;
+  height: auto !important;
+  width: 97% !important;
+  display: block !important;
+  margin: 0 auto !important;
+  object-fit: contain !important;
+}
+
+
+/* make buttons inside playfield slots use normal font-weight */
+.playfield .card .btn{font-weight:400}
+
+/* also make hand card buttons normal weight */
+.hand-wrap .card .btn{font-weight:400}
+
+/* Dodge button styling (shown on playfield slots) */
+.dodge-btn{background:linear-gradient(180deg,#0ea5a4,#047857);color:#fff;border:none;padding:8px 12px;border-radius:8px;box-shadow:0 6px 18px rgba(4,120,87,0.24);font-weight:700;cursor:pointer}
+.dodge-btn:hover{transform:translateY(-3px);box-shadow:0 10px 22px rgba(4,120,87,0.34)}
+
+/* Visual shield badge shown on defended playfield characters */
+.defend-badge{
+  position:absolute;
+  bottom:32px;
+  right:8px;
+  width:36px;
+  height:36px;
+  border-radius:999px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:linear-gradient(180deg,#bbf7d0,#34d399);
+  color:#023020;
+  font-size:16px;
+  font-weight:900;
+  box-shadow:0 6px 12px rgba(4,120,87,0.28);
+  z-index:40;
+  -webkit-text-stroke:0.6px #002;
+}
+
+/* Battle screen button styling */
+.battle-panel .btn{background:linear-gradient(180deg,#2563eb,#1e40af);color:#fff;border:none;padding:8px 12px;border-radius:8px;box-shadow:0 6px 18px rgba(30,64,175,0.35);font-weight:700;cursor:pointer;transition:transform 160ms ease,box-shadow 160ms ease}
+.battle-panel .btn:hover{transform:translateY(-3px);box-shadow:0 10px 22px rgba(30,64,175,0.45)}
+.battle-panel .btn[disabled]{opacity:0.45;cursor:not-allowed;transform:none;box-shadow:none}
+
+/* Specific override so .btn styles don't override End Turn appearance */
+.battle-panel .btn.end-turn-btn,
+.enemy-area .btn.end-turn-btn{
+  background: linear-gradient(180deg,#c53030,#7f1d1d) !important;
+  color: #fff !important;
+  box-shadow: 0 12px 28px rgba(120,20,20,0.42) !important;
+  padding: 12px 18px !important;
+  font-size: 18px !important;
+  min-width: 140px !important;
+  border-radius: 10px !important;
+  font-weight:800 !important;
+}
+
+
+/* End Run button styling (dark red) */
+.end-run-btn{background:linear-gradient(180deg,#7f1d1d,#4b0b0b);color:#fff;border:none;padding:8px 12px;border-radius:10px;box-shadow:0 8px 20px rgba(120,20,20,0.45);font-weight:800;cursor:pointer;transition:transform 160ms ease,box-shadow 160ms ease}
+.end-run-btn:hover{transform:translateY(-3px);box-shadow:0 12px 26px rgba(120,20,20,0.6)}
+.end-run-btn:active{transform:translateY(-1px)}
+
+/* title logo on start screen */
+.title-logo{display:block;margin:8px auto 18px auto;max-height:20vh;width:auto}
+.game-title{
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size:44px;
+  text-align:center;
+  margin:20px 0 8px 0;
+  font-weight:900;
+  letter-spacing:1.6px;
+  text-transform:uppercase;
+  position:relative;
+  /* gradient fill clipped to text for a rich color effect */
+  background:linear-gradient(180deg,#ffd6d6 0%,#ff9a9a 35%,#7f1d1d 100%);
+  -webkit-background-clip:text;
+  background-clip:text;
+  color:transparent;
+  text-shadow:0 3px 10px rgba(0,0,0,0.6);
+}
+.game-title::after{
+  content:'';
+  display:block;
+  width:260px;
+  height:4px;
+  margin:10px auto 0;
+  border-radius:3px;
+  background:linear-gradient(90deg,#7f1d1d,#ff6b6b);
+  box-shadow:0 4px 12px rgba(0,0,0,0.45);
+}
+.ap-display{font-size:20px;font-weight:900;color:#ff6b6b;text-shadow:0 2px 6px rgba(0,0,0,0.6);padding:6px 10px;border-radius:8px;background:transparent}
+
+/* Inspiration Points display on the start screen */
+.ip-display{display:flex;align-items:center;gap:10px;font-size:18px;font-weight:800;color:#ffffff}
+.ip-display .ip-label{color:#ffffff;font-weight:700}
+.ip-badge{min-width:56px;padding:6px 12px;border-radius:999px;background:linear-gradient(180deg,#ffd86b,#ffb84d);border:1px solid rgba(0, 0, 0, 0.12);color:#062;font-weight:900;text-align:center;box-shadow:0 10px 24px rgba(0, 0, 0, 0.28);}
+.ip-badge:hover{transform:translateY(-2px);filter:brightness(1.02)}
+
+/* End screen styles */
+.end-screen{max-width:920px;margin:30px auto;padding:18px;display:flex;flex-direction:column;align-items:center;gap:18px}
+.end-title{font-size:40px;font-weight:900;margin:6px 0;color:#ffd6d6;text-shadow:0 4px 14px rgba(0,0,0,0.6);text-transform:uppercase}
+.end-summary{width:100%;background:linear-gradient(180deg,rgba(255,255,255,0.03),rgba(0,0,0,0.08));padding:18px;border-radius:12px;box-shadow:0 18px 36px rgba(0,0,0,0.6);display:flex;flex-direction:column;gap:12px}
+.end-summary .end-stat{font-size:18px;color:#e6eef8;font-weight:600}
+.end-summary .end-died{color:#ffb4b4}
+.end-summary .end-survived{color:#86efac}
+.end-list{margin:6px 0 0 18px}
+.end-list li{font-size:16px;color:#e6eef8;margin:6px 0}
+.end-btns{display:flex;gap:12px;justify-content:center;margin-top:8px}
+.end-back-btn{background:linear-gradient(180deg,#2563eb,#1e40af);color:#fff;padding:12px 18px;border-radius:10px;font-weight:800;box-shadow:0 10px 22px rgba(30,64,175,0.28)}
+.end-back-btn:hover{transform:translateY(-3px);box-shadow:0 14px 28px rgba(30,64,175,0.36)}
+
+/* Floating controls (bottom-right) for Dismiss / Cancel Pending */
+.floating-controls{position:fixed;right:18px;bottom:18px;display:flex;flex-direction:column;gap:8px;z-index:10005;align-items:flex-end}
+/* base reset so history controls don't force large buttons */
+.floating-controls .btn{min-width:0;padding:8px 10px;border-radius:10px}
+/* action buttons (Dismiss / Cancel) get a fixed min-width */
+.floating-controls .action-btn{min-width:140px;padding:10px 12px;align-self:center;width:auto}
+.floating-controls .dismiss-btn{background:linear-gradient(180deg,#2b8aee,#1e62b8);color:#fff}
+.floating-controls .cancel-btn{background:linear-gradient(180deg,#374151,#1f2937);color:#fff}
+.floating-controls .history-toggle{align-self:flex-end}
+.floating-controls .msg-history{align-self:flex-end}
+.pending-slot{outline:3px solid var(--accent);}
+.btn[disabled]{opacity:0.45;cursor:not-allowed}
+.ap-decrement{animation: apflash 400ms ease; color: #ffb4b4}
+@keyframes apflash{0%{transform:scale(1)}50%{transform:scale(1.06)}100%{transform:scale(1)}}
+.message-area{
+  display:flex;
+  gap:8px;
+  align-items:center;
+  justify-content:space-between;
+  min-height:40px; /* reserve vertical space to prevent layout shift */
+  transition:opacity 160ms ease; /* fade in/out without shifting layout */
+  will-change:opacity;
+}
+.message-area.empty{
+  opacity:0;
+  visibility:hidden; /* keeps reserved space while hiding content */
+  pointer-events:none;
+}
+.msg-history{background:transparent;padding:8px;border-radius:6px;max-height:200px;overflow:auto;margin-top:8px}
+
+/* history (global default): fixed bottom centered for the standalone history panel */
+.msg-history.global-centered{position:fixed;left:50%;transform:translateX(-50%);bottom:60px;width:calc(100% - 40px);max-width:1000px;z-index:9999}
+
+/* history toggle button pinned to bottom center (global default) */
+.history-toggle.global-centered{position:fixed;left:50%;transform:translateX(-50%);bottom:12px;z-index:10000;padding:8px 12px}
+
+/* Floating controls container (bottom-right) */
+.floating-controls{position:fixed;right:18px;bottom:18px;width:auto;z-index:10005}
+/* action stack pinned to bottom of the floating container and laid out horizontally */
+.floating-controls .action-stack{position:absolute;right:0;bottom:0;display:flex;flex-direction:row;gap:8px;align-items:center;justify-content:flex-end;padding:8px}
+/* base reset so history controls don't force large buttons */
+.floating-controls .btn{min-width:0;padding:8px 10px;border-radius:10px}
+/* action buttons (Dismiss / Cancel) get a fixed min-width */
+.floating-controls .action-btn{min-width:120px;padding:10px 12px}
+.floating-controls .dismiss-btn{background:linear-gradient(180deg,#2b8aee,#1e62b8);color:#fff}
+.floating-controls .cancel-btn{background:linear-gradient(180deg,#374151,#1f2937);color:#fff}
+/* history controls are absolutely positioned above the action stack so they don't change its position */
+.floating-controls .msg-history{position:absolute;right:calc(100% + 100px);bottom:72px;width:300px;max-width:320px;max-height:220px}
+.floating-controls .history-toggle{position:absolute;right:0;bottom:56px}
+
+/* persistent bottom history variant: fixed and spans to the right edge */
+.msg-history.persistent-bottom-right{
+  position:fixed;
+  right:18px;
+  bottom:18px;
+  width:420px;
+  max-width:calc(100% - 60px);
+  max-height:220px;
+  z-index:10010;
+  display:block;
+}
+
+/* Collapsed state for persistent history (smoothly hides) */
+.msg-history.persistent-bottom-right.collapsed{
+  max-height:0 !important;
+  opacity:0 !important;
+  pointer-events:none;
+  transition: max-height 260ms ease, opacity 200ms ease;
+}
+
+/* Toggle button positioned above the persistent history panel */
+.history-toggle.persistent-bottom-right{
+  position:fixed;
+  right:18px;
+  bottom:calc(18px + 220px + 10px);
+  z-index:10011;
+  padding:8px 12px;
+  border-radius:10px;
+  background:linear-gradient(180deg,#2490ff,#1b63b2);
+  color:#fff;
+  border:none;
+  box-shadow:0 8px 20px rgba(27,99,178,0.28);
+  font-weight:700;
+  cursor:pointer;
+}
+.history-toggle.persistent-bottom-right:hover{transform:translateY(-2px);box-shadow:0 12px 26px rgba(27,99,178,0.36)}
+.history-toggle.persistent-bottom-right:active{transform:translateY(-1px)}
+
+/* Upgrades / Town page styling */
+/* (Upgrades screen specific styles target `.upgrades-screen` and `.upg-section`) */
+.upgrades-screen{font-family: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif}
+
+/* Upgrades / Town page styling */
+.upg-section{
+  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.06));
+  padding:14px;
+  border-radius:12px;
+  margin-bottom:18px;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.45);
+}
+.upg-section .section-title{font-size:20px;color:var(--accent);margin:0 0 8px 0}
+.tier-section{margin-bottom:12px}
+.upg-section .card-grid{display:flex;gap:12px;flex-wrap:wrap}
+.upg-section .card{width:220px;height:auto;padding:12px;border-radius:12px;background:linear-gradient(180deg,#072a3b,#023047);box-shadow:inset 0 -2px 0 rgba(255,255,255,0.02),0 8px 20px rgba(0,0,0,0.45)}
+.upg-section .card-wrap{width:220px;display:flex;flex-direction:column;box-sizing:border-box}
+.upg-section .card{width:100%;}
+.upg-section .card .card-name{margin-bottom:6px}
+.upg-section .card .card-desc{font-size:13px;color:#dbeef0;margin-bottom:8px}
+.upg-section .card .row{margin-top:auto}
+.upg-section .btn{width:100%;padding:10px 12px;border-radius:10px;font-weight:800;box-shadow:0 8px 18px rgba(0,0,0,0.36)}
+.upg-section .btn[disabled]{background:linear-gradient(180deg,#9ca3af,#6b7280);color:#0c1820;cursor:not-allowed;opacity:0.75;box-shadow:none}
+.upg-section .btn:not([disabled]){background:linear-gradient(180deg,#ffd86b,#ffb84d);color:#062}
+.upg-section .card .badge{background:linear-gradient(180deg,#111827,#374151);color:#fff;padding:6px 8px;border-radius:8px}
+.upg-section .card .cost{font-weight:800;color:#f8f2df}
+.upg-legendary{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.upg-meta{display:flex;gap:12px;align-items:center;justify-content:flex-end;margin-bottom:10px}
+
+/* Ensure card tiles inside the upgrades container are vertically laid out
+  so the footer/buttons anchor to the bottom and images don't create
+  baseline gaps that visually offset the card content. */
+.upgrades-container .card{display:flex;flex-direction:column;align-items:stretch;min-height:220px;box-sizing:border-box}
+.upgrades-container .card .row{margin-top:auto}
+.upgrades-container .card img{display:block;max-width:100%;height:auto;border-radius:8px}
+
+/* Slight responsive improvements for upgrades grid */
+@media (max-width:880px){
+  .upg-section .card{width:46%;}
+}
+@media (max-width:520px){
+  .upg-section .card{width:100%;}
+}
+.upgrades-screen h1{font-family: Georgia, 'Times New Roman', serif; font-size:36px; text-align:center; margin:6px 0 12px 0; color:var(--accent); letter-spacing:1px; text-shadow:0 3px 12px rgba(0,0,0,0.6)}
+.upgrades-screen .btn{font-family: 'Segoe UI', Roboto, Arial, sans-serif; transition:transform 160ms ease, box-shadow 160ms ease}
+.upgrades-screen .btn:not([disabled]):hover{transform:translateY(-3px);box-shadow:0 14px 28px rgba(0,0,0,0.36)}
+
+/* persistent bottom-left controls (Dismiss / Cancel) */
+.persistent-controls-left{
+  position:fixed;
+  left:18px;
+  bottom:18px;
+  display:flex;
+  gap:8px;
+  z-index:10010;
+}
+
+/* Styles for persistent bottom-left action buttons */
+.persistent-controls-left .dismiss-btn{
+  background:linear-gradient(180deg,#2490ff,#1b63b2);
+  color:#fff;
+  border:none;
+  padding:10px 14px;
+  border-radius:10px;
+  font-weight:700;
+  box-shadow:0 8px 18px rgba(27,99,178,0.28);
+  min-width:130px;
+  cursor:pointer;
+  transition:transform 160ms ease, box-shadow 160ms ease;
+}
+.persistent-controls-left .dismiss-btn:hover{ transform:translateY(-3px); box-shadow:0 12px 26px rgba(27,99,178,0.36); }
+
+.persistent-controls-left .cancel-btn{
+  background:linear-gradient(180deg,#ef4444,#b91c1c);
+  color:#fff;
+  border:none;
+  padding:10px 14px;
+  border-radius:10px;
+  font-weight:700;
+  box-shadow:0 8px 18px rgba(185,28,28,0.28);
+  min-width:130px;
+  cursor:pointer;
+  transition:transform 160ms ease, box-shadow 160ms ease;
+}
+.persistent-controls-left .cancel-btn:hover{ transform:translateY(-3px); box-shadow:0 12px 26px rgba(185,28,28,0.36); }
+
+/* Allow scrolling past fixed bottom UI (history / controls) */
+html, body {
+  height:100%;
+}
+body{
+  /* leave room for fixed panels (history bottom-right, controls bottom-left)
+     adjust if you change the height of those panels */
+  padding-bottom:1250px; /* increased to allow scrolling past summons */
+  /* page background image (use the PNG only to avoid 404s) */
+  background-image: url('assets/background.png');
+  background-size: cover;
+  background-position: center center;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+}
+
+@media (max-width:640px){
+  /* smaller screens need more bottom room for stacked panels */
+  body{ padding-bottom:520px; }
+}
+
+/* Extra visual breathing room under the summons area */
+.summons-wrap{ margin-bottom:56px; }
+
+/* Center the Slot N placeholder text inside empty playfield slots */
+.playfield .card > .muted{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  width:100%;
+  height:100%;
+  text-align:center;
+  font-size:20px;
+  font-weight:800;
+  opacity:0.85;
+}
+
+/* Highlight valid targets when an action is pending (e.g., heal) */
+.pending-target{
+  outline:4px solid rgba(52,211,153,0.95);
+  box-shadow:0 12px 28px rgba(16,185,129,0.18);
+  border-radius:10px;
+}
+
+/* History button styling */
+.history-toggle{background:linear-gradient(180deg,#0b1220,#16324a);color:#fff;border:none;padding:8px 10px;border-radius:8px;font-weight:800;box-shadow:0 6px 14px rgba(0,0,0,0.4)}
+.history-toggle:hover{transform:translateY(-2px)}
+
+.history-clear{background:linear-gradient(180deg,#ef4444,#b91c1c);color:#fff;border:none;padding:8px 10px;border-radius:8px;font-weight:700;cursor:pointer}
+.history-clear:hover{filter:brightness(1.05)}
+.floating-controls .msg-history .history-clear{width:auto;box-sizing:border-box;margin-top:8px;padding:6px 8px;font-size:13px}
+
+/* Start Run button pinned to middle-bottom (above history) */
+.start-run-btn{position:fixed;left:50%;transform:translateX(-50%);bottom:28px;z-index:10002;padding:16px 26px;font-weight:700;font-size:20px;min-width:220px}
+.start-run-btn{background:linear-gradient(180deg,#7f1d1d,#4b0b0b);color:#fff;border:none;border-radius:12px;box-shadow:0 8px 24px rgba(75,11,11,0.45);cursor:pointer}
+.start-run-btn:hover{transform:translateX(-50%) translateY(-4px);box-shadow:0 12px 28px rgba(75,11,11,0.6)}
+.start-run-btn:active{transform:translateX(-50%) translateY(-2px)}
+.start-run-btn:focus{outline:3px solid rgba(255,80,80,0.3)}
+.start-run-btn[disabled]{opacity:0.5;cursor:not-allowed}
+.msg-item{padding:4px 6px}
+
+/* Name labels shown above images for cards/summons/enemies */
+.summon-name, .card-name{
+  text-align:center;
+  font-weight:900;
+  color:var(--accent);
+  margin:8px 0;
+  font-size:24px;
+  /* black outline via multiple text-shadows for broad browser support */
+  text-shadow:
+    -1px -1px 0 #000,
+    1px -1px 0 #000,
+    -1px 1px 0 #000,
+    1px 1px 0 #000,
+    0 0 2px rgba(0,0,0,0.6);
+  /* add stroke where supported */
+  -webkit-text-stroke: 0.8px #000;
+}
+
+/* Start screen slot badges and selected card styling */
+.slot-badges{display:flex;align-items:center;gap:8px;font-weight:800;color:#e6eef8}
+.slot-badges .badge{display:inline-flex;align-items:center;justify-content:center;min-width:40px;padding:6px 10px;border-radius:999px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.04);color:var(--accent);font-weight:900}
+.slot-badges .remaining-badge{background:linear-gradient(180deg,rgba(34,197,94,0.12),rgba(34,197,94,0.04));border-color:rgba(34,197,94,0.15);color:var(--accent)}
+.slot-badges .selected-badge{background:linear-gradient(180deg,rgba(37,99,235,0.06),rgba(2,6,23,0.02));border-color:rgba(37,99,235,0.06);color:#9ecbff}
+
+.card.selected{outline:3px solid rgba(134,239,172,0.95);box-shadow:0 18px 36px rgba(34,197,94,0.12);transform:translateY(-6px)}
+.card.selected img{filter:brightness(1.02) contrast(1.02)}
+
+/* improve the clickable feel on start screen grid */
+.card-grid .card{transition:transform 160ms ease,box-shadow 160ms ease,outline 160ms ease}
+
+/* Make start-screen cards taller while preserving aspect ratios */
+.start-screen .card{height:400px;width:220px}
+.start-screen .card img{max-height:340px}
+
+/* Encounter End screen */
+.encounter-end-screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100vh - 120px);
+  padding: 48px 16px;
+  box-sizing: border-box;
+}
+.encounter-end-panel {
+  background: rgba(10,10,12,0.88);
+  border: 2px solid rgba(255,255,255,0.06);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+  padding: 28px;
+  width: min(820px, 92%);
+  border-radius: 12px;
+  color: var(--text, #eee);
+  text-align: center;
+}
+.encounter-end-title {
+  font-size: 2rem;
+  font-weight: 700;
+  margin-bottom: 10px;
+  color: var(--accent, #7dfc6b);
+  text-shadow: 0 1px 0 rgba(0,0,0,0.8);
+}
+.encounter-end-body {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin: 18px 0 22px;
+}
+.encounter-killed {
+  flex: 1 1 280px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.encounter-killed .card {
+  width: 220px;
+  height: 260px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 8px;
+}
+.encounter-killed .card img {
+  max-height: 160px;
+  object-fit: contain;
+}
+.encounter-killed .killed-name {
+  font-weight: 700;
+  font-size: 1.2rem;
+  color: #ff6b6b;
+  text-shadow: 0 2px 0 rgba(0,0,0,0.8);
+}
+.encounter-reward {
+  flex: 1 1 280px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+.encounter-reward .reward-label {
+  font-size: 0.95rem;
+  color: rgba(255,255,255,0.8);
+}
+.encounter-reward .reward-value {
+  font-size: 2.1rem;
+  font-weight: 800;
+  color: var(--accent, #7dfc6b);
+  text-shadow: 0 3px 0 rgba(0,0,0,0.75);
+}
+.encounter-continue-row {
+  margin-top: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.encounter-continue-btn {
+  background: linear-gradient(180deg,#ff5959 0%, #c33 100%);
+  color: white;
+  padding: 12px 22px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 1rem;
+  box-shadow: 0 6px 18px rgba(200,40,40,0.28);
+}
+.encounter-continue-btn:hover { transform: translateY(-2px); }
+.encounter-continue-btn:active { transform: translateY(0); }
+
+@media (max-width: 640px) {
+  .encounter-end-panel { padding: 18px; }
+  .encounter-end-title { font-size: 1.5rem; }
+  .encounter-killed .card { width: 180px; height: 220px; }
+  .encounter-reward .reward-value { font-size: 1.6rem; }
+}
+
+.summon-name{font-size:24px}
+
+/* Enemy-specific name styling: larger and red-stylized */
+.enemy-area .card-name{
+  font-size:30px;
+  color:#e63b3bdc;
+  margin:6px 0 12px 0;
+  font-weight:900;
+  -webkit-text-stroke:1px #000;
+  text-shadow:
+    -1px -1px 0 #000,
+    1px -1px 0 #000,
+    -1px 1px 0 #000,
+    1px 1px 0 #000,
+    0 3px 10px rgba(75,0,0,0.45),
+    0 0 6px rgba(255,90,90,0.12);
+}
+
+/* Help badge shown on heroes that used the Help/support action */
+.help-badge{
+  position:absolute;
+  bottom:8px;
+  right:8px;
+  width:36px;
+  height:36px;
+  border-radius:999px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:linear-gradient(180deg,#fef3c7,#fde68a);
+  color:#6b341e;
+  font-size:16px;
+  font-weight:900;
+  box-shadow:0 6px 12px rgba(250,200,60,0.18);
+  z-index:40;
+}

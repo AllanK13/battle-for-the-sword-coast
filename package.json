@@ -1,0 +1,9 @@
+{
+  "name": "battle-for-the-sword-coast",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "start": "npx http-server -c-1 -p 8080 -o"
+  },
+  "devDependencies": {}
+}

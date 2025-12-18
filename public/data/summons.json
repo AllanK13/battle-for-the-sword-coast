@@ -1,0 +1,20 @@
+[
+  {
+    "name": "Garon",
+    "type": "Heal",
+    "ability": "Small respite at the tavern; heals entire party 1 HP",
+    "restriction": "Once per encounter",
+    "ip_cost": 10,
+    "id": "garon",
+    "starter": true
+  },
+  {
+    "name": "Volo",
+    "type": "Support",
+    "ability": "Gives info on enemy; next attack deals double damage",
+    "restriction": "Once per encounter",
+    "ip_cost": 10,
+    "id": "volo",
+    "starter": false
+  }
+]

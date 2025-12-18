@@ -1,0 +1,7 @@
+[
+  {"upgrade":"Increase AP (to 4)","ip_cost":30,"id":"ap_4"},
+  {"upgrade":"Increase AP (to 5)","ip_cost":100,"id":"ap_5"},
+  {"upgrade":"Legendary Store Access","ip_cost":30,"id":"legendary_store"},
+  {"upgrade":"Invest in V with Tootha - 25% more IP earned","ip_cost":30,"id":"invest_v"},
+  {"upgrade":"Increase Party Slots 1","ip_cost":10,"id":"slot_1"}
+]
