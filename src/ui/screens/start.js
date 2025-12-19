@@ -89,6 +89,26 @@ export function renderStart(root, ctx){
     unlockTownBtn.style.marginTop = '8px';
     unlockTownBtn.addEventListener('click',()=>{ if(ctx.onDebugUnlockTown) ctx.onDebugUnlockTown(); else if(ctx.setMessage) ctx.setMessage('No debug handler'); });
     debugPanel.appendChild(unlockTownBtn);
+    // Debug: quick-start an encounter by enemy
+    try{
+      const enemyLabel = el('div',{style:'margin-top:8px;font-weight:700'},['Start specific enemy:']);
+      const enemySelect = el('select',{style:'display:block;margin-top:6px;width:100%'},[]);
+      (ctx.data && Array.isArray(ctx.data.enemies) ? ctx.data.enemies : []).forEach((e,i)=>{
+        const opt = el('option',{value:String(i)},[ (e.name || e.id || String(i)) ]);
+        enemySelect.appendChild(opt);
+      });
+      const startEnemyBtn = el('button',{class:'btn'},['Start Enemy']);
+      startEnemyBtn.style.display = 'block';
+      startEnemyBtn.style.marginTop = '8px';
+      startEnemyBtn.addEventListener('click',()=>{
+        const val = enemySelect.value;
+        if(typeof ctx.onDebugStartEnemy === 'function') ctx.onDebugStartEnemy(Number(val));
+        else if(ctx.setMessage) ctx.setMessage('No debug start handler available');
+      });
+      debugPanel.appendChild(enemyLabel);
+      debugPanel.appendChild(enemySelect);
+      debugPanel.appendChild(startEnemyBtn);
+    }catch(e){ /* ignore */ }
     debugBtn.addEventListener('click',()=>{ debugOpen = !debugOpen; debugPanel.style.display = debugOpen ? 'block' : 'none'; });
     container.appendChild(debugBtn);
     container.appendChild(debugPanel);

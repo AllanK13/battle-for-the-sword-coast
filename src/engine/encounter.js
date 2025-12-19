@@ -186,6 +186,67 @@ export function enemyAct(state){
     try{ state.deck.drawN(1); }catch(e){ console.warn('draw after enemy failed', e); }
     return {did:'enemyAct', events};
   }
+  // If the enemy defines an `attacks` array, pick one at random and use its
+  // type/dmg/name to drive the action. This allows more varied enemy behaviors
+  // without hardcoding in JS.
+  // Note: Szass Tam (id: 'szass_tam') is defined in `data/enemies.json` and
+  // uses this data-driven `attacks` array (Paralyzing Touch, Cone of Cold,
+  // Disintegrate). The generic `attacks` handling below will pick an attack
+  // and emit `attackName`/`attack` in the resulting events for UI messaging.
+  if(state.enemy && Array.isArray(state.enemy.attacks) && state.enemy.attacks.length>0){
+    const picks = state.enemy.attacks;
+    const atkIndex = rng ? rng.int(picks.length) : Math.floor(Math.random()*picks.length);
+    const atk = picks[atkIndex] || {};
+    const attackName = atk.name || ('Attack '+(atkIndex+1));
+    const type = (atk.type || 'single').toLowerCase();
+    const baseDmg = (typeof atk.dmg === 'number') ? atk.dmg : (state.enemy.attack || 1);
+    // handle AOE attacks
+    if(type === 'aoe'){
+      const baseAoE = baseDmg;
+      for(let i=0;i<state.playfield.length;i++){
+        const h = state.playfield[i];
+        if(h){
+          let remaining = baseAoE;
+          if(h.defending) remaining = Math.ceil(remaining/2);
+          let tempTaken = 0;
+          if(h.tempHp && h.tempHp>0){ const take = Math.min(h.tempHp, remaining); h.tempHp -= take; tempTaken = take; remaining -= take; }
+          let hpTaken = 0;
+          if(remaining>0){ h.hp -= remaining; hpTaken = remaining; }
+          const died = h.hp <= 0;
+          const heroName = h.base && h.base.name ? h.base.name : null;
+          if(died){ state.exhaustedThisEncounter.push(h.base); state.playfield[i] = null; }
+          events.push({ type:'hit', slot:i, dmg: baseAoE, tempTaken, hpTaken, remainingHp: died?0:h.hp, died, heroName, attack: atkIndex+1, attackName });
+        }
+      }
+    } else {
+      // single-target attack
+      // prefer helped hero (support 'Help') if present
+      const helpedIndex = state.playfield.findIndex(h => h && h.helped);
+      const idx = _selectSingleTargetIndex(state, rng);
+      if(idx !== -1){
+        let h = state.playfield[idx];
+        if(h){
+          // single-target: defended heroes take no damage
+          let remaining = h.defending ? 0 : baseDmg;
+          let tempTaken = 0;
+          if(h.tempHp && h.tempHp>0){ const take = Math.min(h.tempHp, remaining); h.tempHp -= take; tempTaken = take; remaining -= take; }
+          let hpTaken = 0;
+          if(remaining>0) { h.hp -= remaining; hpTaken = remaining; }
+          const died = h.hp <= 0;
+          const heroName = h.base && h.base.name ? h.base.name : null;
+          if(died){ state.exhaustedThisEncounter.push(h.base); state.playfield[idx]=null }
+          events.push({ type:'hit', slot:idx, dmg:baseDmg, tempTaken, hpTaken, remainingHp: died?0:h.hp, died, heroName, attack: atkIndex+1, attackName });
+        }
+      }
+    }
+    // after performing the attack(s), perform end-of-enemy-turn housekeeping
+    state.ap = state.apPerTurn;
+    Object.keys(state.summonCooldowns).forEach(k=>{ if(state.summonCooldowns[k] > 0) state.summonCooldowns[k]--; });
+    state.playfield.forEach(h=>{ if(h && h.defending) h.defending = false; });
+    state.playfield.forEach(h=>{ if(h && h.helped) h.helped = false; });
+    try{ state.deck.drawN(1); }catch(e){ console.warn('draw after enemy failed', e); }
+    return {did:'enemyAct', events};
+  }
   // Special behavior for Wiltherp: two single-target attacks (2 dmg) and one AOE (1 dmg)
   if(state.enemy && (state.enemy.id === 'wiltherp' || (state.enemy.name && state.enemy.name.toLowerCase().includes('wiltherp')))){
     const atkIndex = rng ? rng.int(3) : Math.floor(Math.random()*3);

@@ -3,18 +3,45 @@
     "name": "Twig Blight",
     "ip_reward": 1,
     "hp": 18,
-    "id": "twig_blight"
+    "id": "twig_blight",
+    "attacks": [
+      { "name": "Claws", "type": "single", "dmg": 1 },
+      { "name": "Claws", "type": "single", "dmg": 1 },
+      { "name": "Lash", "type": "single", "dmg": 2 }
+    ]
   },
   {
     "name": "Wiltherp",
     "ip_reward": 3,
     "hp": 30,
-    "id": "wiltherp"
+    "id": "wiltherp",
+    "attacks": [
+      { "name": "Poison Spray", "type": "single", "dmg": 2 },
+      { "name": "Shillelagh", "type": "single", "dmg": 2 },
+      { "name": "Thunderwave", "type": "aoe", "dmg": 1 }
+    ]
   },
   {
     "name": "Red Wizard",
     "ip_reward": 5,
-    "hp": 8,
-    "id": "red_wizard"
+    "hp": 42,
+    "id": "red_wizard",
+    "attacks": [
+      { "name": "Firebolt", "type": "single", "dmg": 3 },
+      { "name": "Fireball", "type": "aoe", "dmg": 2 },
+      { "name": "Magic Missile", "type": "single", "dmg": 4 }
+    ]
+  }
+  ,
+  {
+    "name": "Szass Tam",
+    "ip_reward": 7,
+    "hp": 62,
+    "id": "szass_tam",
+    "attacks": [
+      { "name": "Paralyzing Touch", "type": "single", "dmg": 4 },
+      { "name": "Cone of Cold", "type": "aoe", "dmg": 3 },
+      { "name": "Disintegrate", "type": "single", "dmg": 5 }
+    ]
   }
 ]

@@ -4,7 +4,7 @@
     "type": "Heal",
     "ability": "Small respite at the tavern; heals entire party 1 HP",
     "restriction": "Once per encounter",
-    "ip_cost": 10,
+    "ip_cost": 0,
     "id": "garon",
     "starter": true
   },
@@ -15,6 +15,16 @@
     "restriction": "Once per encounter",
     "ip_cost": 10,
     "id": "volo",
+    "starter": false
+  }
+  ,
+  {
+    "name": "Durnan",
+    "type": "Heal",
+    "ability": "Large respite at the tavern; heals entire party 3 HP",
+    "restriction": "Once per encounter",
+    "ip_cost": 20,
+    "id": "durnan",
     "starter": false
   }
 ]

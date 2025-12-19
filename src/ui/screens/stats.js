@@ -24,7 +24,23 @@ export function renderStats(root, ctx){
   const overview = el('div',{class:'stats-overview panel muted'},[]);
   overview.appendChild(el('div',{class:'stats-overview-item'},['Runs: ', el('strong',{},[String(meta.runs || 0)])]));
   overview.appendChild(el('div',{class:'stats-overview-item'},['Encounters beaten: ', el('strong',{},[String(meta.encountersBeaten || 0)])]));
-  overview.appendChild(el('div',{class:'stats-overview-item'},['Furthest reached enemy: ', el('strong',{},[String(meta.furthestReachedEnemy != null ? meta.furthestReachedEnemy : 'N/A')]) ]));
+  // Show furthest reached enemy as a readable name when possible
+  const enemiesList = (ctx && ctx.data && ctx.data.enemies) ? ctx.data.enemies : [];
+  let furthestDisplay = 'N/A';
+  if(typeof meta.furthestReachedEnemy !== 'undefined' && meta.furthestReachedEnemy !== null){
+    const f = meta.furthestReachedEnemy;
+    if(typeof f === 'number'){
+      const e = enemiesList[f];
+      if(e) furthestDisplay = e.name || e.id || String(f);
+      else furthestDisplay = String(f);
+    }else{
+      // f might be an id or name string
+      const match = enemiesList.find(en => en.id === f || en.name === f);
+      if(match) furthestDisplay = match.name || match.id || String(f);
+      else furthestDisplay = String(f);
+    }
+  }
+  overview.appendChild(el('div',{class:'stats-overview-item'},['Furthest reached enemy: ', el('strong',{},[furthestDisplay]) ]));
   container.appendChild(overview);
 
   // characters
@@ -57,7 +73,7 @@ export function renderStats(root, ctx){
   container.appendChild(kvList(summonNameCounts));
 
   // enemies defeated / victories — consolidate id/name and always list all enemies
-  const enemies = (ctx && ctx.data && ctx.data.enemies) ? ctx.data.enemies : [];
+  const enemies = enemiesList;
   const defeatCounts = {};
   const victoryCounts = {};
   const metaDefObj = meta.enemyDefeatCounts || {};

@@ -74,10 +74,10 @@ function appStart(){
   // On first-ever run, grant starter ownership if none present
   try{
     if((meta.runs||0) === 0){
-      if(Array.isArray(meta.ownedCards) && meta.ownedCards.length === 0){
+      if(!(Array.isArray(meta.ownedCards) && meta.ownedCards.length > 0)){
         meta.ownedCards = (data.cards||[]).filter(c=>c && c.starter).map(c=>c.id);
       }
-      if(Array.isArray(meta.ownedSummons) && meta.ownedSummons.length === 0){
+      if(!(Array.isArray(meta.ownedSummons) && meta.ownedSummons.length > 0)){
         meta.ownedSummons = (data.summons||[]).filter(s=>s && s.starter).map(s=>s.id);
       }
       saveMeta(meta);
@@ -119,6 +119,50 @@ function appStart(){
           saveMeta(meta);
         }catch(e){ console.warn('debug unlock town failed', e); }
         navigate('start');
+      }
+      ,
+      onDebugStartEnemy(indexOrId){
+        try{
+          // resolve index if provided an id/name
+          let idx = -1;
+          if(typeof indexOrId === 'number') idx = Number(indexOrId);
+          else if(typeof indexOrId === 'string') idx = (data.enemies||[]).findIndex(e=> e && (e.id===indexOrId || e.name===indexOrId));
+          if(idx < 0 || !(data.enemies && data.enemies[idx])) { console.warn('Invalid enemy for debug start', indexOrId); return; }
+          // build a default chosen deck (owned or starters)
+          let chosen = (meta && Array.isArray(meta.ownedCards) && meta.ownedCards.length>0) ? meta.ownedCards.slice() : (data.cards||[]).filter(c=>c && c.starter).map(c=>c.id);
+          // build deck and start a single-encounter state
+          const deck = buildDeck(data.cards, chosen, RNG);
+          const enemy = data.enemies[idx];
+          const encounter = startEncounter({...enemy}, deck, RNG, { apPerTurn: 3 });
+          const runSummary = { defeated: [], diedTo: null, ipEarned: 0 };
+          const ctx = {
+            data, meta,
+            encounter,
+            message: '',
+            messageHistory: [],
+            setMessage(msg, timeout=3000){ const entry = { text: msg, ts: Date.now() }; ctx.message = msg; ctx.messageHistory = ctx.messageHistory || []; ctx.messageHistory.unshift(entry); if(ctx.messageHistory.length>50) ctx.messageHistory.length = 50; ctx.onStateChange(); if(timeout) setTimeout(()=>{ if(ctx.message===msg){ ctx.message=''; ctx.onStateChange(); } }, timeout); },
+            dismissMessage(){ ctx.message=''; ctx.onStateChange(); },
+            clearMessageHistory(){ ctx.messageHistory = []; ctx.onStateChange(); },
+            placeHero(card){ const res = placeHero(encounter, card); if(res.success){ if(ctx.setMessage) ctx.setMessage('Placed '+(card.name||card.id)+' in space '+(res.slot+1)); } else { if(ctx.setMessage) ctx.setMessage('No unoccupied space'); } return res; },
+            playHeroAttack(slot){ const res = playHeroAttack(encounter, slot); if(!res.success){ if(ctx.setMessage) ctx.setMessage(res.reason||'Attack failed'); } else { if(ctx.setMessage) ctx.setMessage('Hero dealt '+res.dmg+' damage. Enemy HP: '+res.enemyHp); } return res; },
+            playHeroAction(slot, targetIndex){ const res = playHeroAction(encounter, slot, targetIndex); if(!res.success){ if(ctx.setMessage) ctx.setMessage(res.reason||'Action failed'); } else { if(res.type === 'attack'){ if(ctx.setMessage) ctx.setMessage('Hero dealt '+res.dmg+' damage. Enemy HP: '+res.enemyHp); } else if(res.type === 'heal'){ if(ctx.setMessage) ctx.setMessage('Hero healed '+res.healed+' HP (now '+res.hp+')'); } else if(res.type === 'support' && res.refreshed === 'volo') { if(ctx.setMessage) ctx.setMessage("Support active: Volo ability available again"); } else if(res.type === 'support') { if(ctx.setMessage) ctx.setMessage('Support active: will be targeted by next single-target enemy attack'); } } return res; },
+            defendHero(slot){ const res = defendHero(encounter, slot); if(!res.success){ if(ctx.setMessage) ctx.setMessage(res.reason||'Defend failed'); } else { if(ctx.setMessage) ctx.setMessage('Hero is defending'); } return res; },
+            replaceHero(slot, card){ const res = replaceHero(encounter, slot, card); if(!res.success) { if(ctx.setMessage) ctx.setMessage(res.reason||'Replace failed'); } else { if(ctx.setMessage) ctx.setMessage('Replaced space '+(slot+1)+' with '+(card.name||card.id)); } return res; },
+            useSummon(id, targetIndex=null){ const s = data.summons.find(x=>x.id===id); const r = useSummon(encounter,s,targetIndex); if(!r.success){ if(ctx.setMessage) ctx.setMessage(r.reason||'Summon failed'); } else { if(ctx.setMessage) ctx.setMessage('Summon: '+(s.name||s.id)+' used'); } try{ if(r.success && s && s.id){ meta.summonUsage = meta.summonUsage || {}; meta.summonUsage[s.id] = (meta.summonUsage[s.id] || 0) + 1; saveMeta(meta); } }catch(e){} return r; },
+            runSummary,
+            currentEnemyIndex: idx,
+            endTurn(){ const res = enemyAct(encounter); let messages = []; if(res && res.events && res.events.length){ messages = res.events.map(ev => { if(ev.type === 'stunned') return ev.msg; if(ev.type === 'hit'){ const name = ev.heroName || (encounter.playfield[ev.slot] && encounter.playfield[ev.slot].base && encounter.playfield[ev.slot].base.name) || ('space ' + (ev.slot+1)); const totalDmg = (ev.tempTaken||0)+(ev.hpTaken||0); const attackPrefix = ev.attackName ? ('Enemy used ' + ev.attackName + ' and ') : ''; if(ev.died) return attackPrefix + 'hit ' + name + ' for ' + totalDmg + ' and killed it'; if(totalDmg === 0) return attackPrefix + 'attacked ' + name + ' but dealt no damage'; return attackPrefix + 'hit ' + name + ' for ' + totalDmg + ', remaining HP: ' + ev.remainingHp; } return null; }).filter(Boolean); }
+              if(!messages.length){ if(res && res.did === 'enemyStunned'){ messages = ['Enemy stunned and skipped its turn']; } else if(res && res.did === 'enemyAct'){ messages = ['Enemy could not attack (no targets)']; } else { messages = ['Enemy turn passed']; } }
+              if(messages.length) ctx.setMessage(messages.join('\n'),1000);
+              const finished = isFinished(encounter).winner;
+              if(finished === 'player'){ const reward = encounter.enemy.ip_reward || 1; const prevOnState = ctx.onStateChange; const prevSetMessage = ctx.setMessage; ctx.onStateChange = ()=>{}; ctx.setMessage = ()=>{}; const encounterEndCtx = { data, enemy: encounter.enemy, reward, runSummary, onContinue: ()=>{ ctx.onStateChange = prevOnState; ctx.setMessage = prevSetMessage; const enemyKey = encounter.enemy.id || encounter.enemy.name || 'unknown'; runSummary.defeated.push(enemyKey); runSummary.ipEarned = (runSummary.ipEarned||0) + reward; meta.ip += reward; meta.totalIpEarned = (meta.totalIpEarned||0) + reward; try{ meta.encountersBeaten = (meta.encountersBeaten || 0) + 1; meta.furthestReachedEnemy = Math.max((meta.furthestReachedEnemy||0), idx); meta.enemyDefeatCounts = meta.enemyDefeatCounts || {}; meta.enemyDefeatCounts[enemyKey] = (meta.enemyDefeatCounts[enemyKey] || 0) + 1; saveMeta(meta); }catch(e){} navigate('start'); } }; navigate('encounter_end', encounterEndCtx); return; }
+              else if(finished === 'enemy'){ const enemyKey = encounter.enemy.id || encounter.enemy.name || 'unknown'; runSummary.diedTo = enemyKey; try{ meta.runs = (meta.runs||0) + 1; meta.furthestReachedEnemy = Math.max((meta.furthestReachedEnemy||0), idx); meta.enemyVictoryCounts = meta.enemyVictoryCounts || {}; meta.enemyVictoryCounts[enemyKey] = (meta.enemyVictoryCounts[enemyKey] || 0) + 1; saveMeta(meta); }catch(e){} const endCtx = { data, runSummary, onRestart: ()=> navigate('start') }; ctx.onStateChange = ()=>{}; ctx.setMessage = ()=>{}; navigate('end', endCtx); return; }
+              navigate('battle', ctx);
+            },
+            onStateChange(){ navigate('battle', ctx); }
+          };
+          navigate('battle', ctx);
+        }catch(e){ console.warn('onDebugStartEnemy failed', e); }
       }
     });
   });
@@ -204,6 +248,13 @@ let RNG = createRNG();
 async function startRun({seed, deckIds} = {}){
   if(seed) RNG = createRNG(seed);
   let chosen = (deckIds && deckIds.length>0) ? deckIds : ((meta && Array.isArray(meta.ownedCards) && meta.ownedCards.length>0) ? meta.ownedCards.slice() : data.cards.filter(c=>c.starter).map(c=>c.id));
+  // Ensure the player has starter summons available for the run if none are owned
+  try{
+    if(!(meta && Array.isArray(meta.ownedSummons) && meta.ownedSummons.length > 0)){
+      meta.ownedSummons = (data.summons||[]).filter(s=>s && s.starter).map(s=>s.id);
+      saveMeta(meta);
+    }
+  }catch(e){ /* ignore */ }
   // Track characters taken on a run (increment per-run usage)
   try{
     meta.characterUsage = meta.characterUsage || {};
