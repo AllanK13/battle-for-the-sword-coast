@@ -34,8 +34,7 @@
     "ip_cost": 0,
     "id": "erky_timbers",
     "starter": true
-  }
-  ,
+  },
   {
     "name": "Whiph",
     "type": "DPS",
@@ -47,8 +46,7 @@
     "ip_cost": 5,
     "id": "whiph",
     "starter": false
-  }
-  ,
+  },
   {
     "name": "Ferrek",
     "type": "DPS",
@@ -60,8 +58,7 @@
     "ip_cost": 5,
     "id": "ferrek",
     "starter": false
-  }
-  ,
+  },
   {
     "name": "Piter",
     "type": "Support",
@@ -84,6 +81,78 @@
     "slot_cost": 1.0,
     "ip_cost": 5,
     "id": "shalendra",
+    "starter": false
+  },
+  {
+    "name": "Gnolls",
+    "type": "DPS",
+    "hp": 6.0,
+    "ability": "Volley: 4 damage",
+    "actionType": "attack",
+    "tier": 2,
+    "slot_cost": 2.0,
+    "ip_cost": 10,
+    "id": "gnolls",
+    "starter": false
+  },
+  {
+    "name": "Cree (teen)",
+    "type": "DPS",
+    "hp": 6.0,
+    "ability": "Greatsword: 4 damage",
+    "actionType": "attack",
+    "tier": 2,
+    "slot_cost": 2.0,
+    "ip_cost": 10,
+    "id": "cree_teen",
+    "starter": false
+  },
+  {
+    "name": "Lumalia",
+    "type": "Support",
+    "hp": 6.0,
+    "ability": "Eventually assist: 6 damage after enemy turn",
+    "actionType": "support",
+    "tier": 2,
+    "slot_cost": 2.0,
+    "ip_cost": 10,
+    "id": "lumalia",
+    "starter": false
+  },
+  {
+    "name": "Grogu",
+    "type": "DPS",
+    "hp": 7.0,
+    "ability": "Lightning Bolt: 6 damage",
+    "actionType": "attack",
+    "tier": 2,
+    "slot_cost": 2.0,
+    "ip_cost": 12,
+    "id": "grogu",
+    "starter": false
+  },
+  {
+    "name": "Syranna",
+    "type": "DPS",
+    "hp": 7.0,
+    "ability": "Magic Missile: 6 damage",
+    "actionType": "attack",
+    "tier": 2,
+    "slot_cost": 2.0,
+    "ip_cost": 12,
+    "id": "syranna",
+    "starter": false
+  },
+  {
+    "name": "Eddie",
+    "type": "Healer",
+    "hp": 7.0,
+    "ability": "Cure Wounds (4th level): Heal one creature for 5 HP",
+    "actionType": "heal",
+    "tier": 2,
+    "slot_cost": 2.0,
+    "ip_cost": 12,
+    "id": "eddie",
     "starter": false
   }
 ]

@@ -57,5 +57,16 @@ export function cardTile(item, opts={}){
   if(!opts.hideCost && typeof item.ip_cost !== 'undefined') stats.appendChild(el('div',{class:'muted card-stat'},['Cost: '+item.ip_cost]));
   if(item.ability) stats.appendChild(el('div',{class:'muted card-desc'},[item.ability]));
   d.appendChild(stats);
+  // if caller provided a footer element, append it inside the card so it stays anchored
+  if(opts.footer){
+    try{ opts.footer.classList.add('card-footer'); }catch(e){}
+    d.appendChild(opts.footer);
+  }
+  // show temp HP badge (top-left) only when temp HP is a positive number
+  if(typeof opts.tempHp !== 'undefined' && Number(opts.tempHp) > 0){
+    try{ d.style.position = d.style.position || 'relative'; }catch(e){}
+    const t = el('div',{class:'card-temp-hp'},[ String(opts.tempHp) ]);
+    d.appendChild(t);
+  }
   return d;
 }

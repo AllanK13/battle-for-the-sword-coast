@@ -62,13 +62,15 @@ async function loadData(){
   const enemies = await fetchAny([
     './data/enemies.json', 'data/enemies.json', '/data/enemies.json'
   ]);
+  const legendary = await fetchAny([
+    './data/legendary.json', 'data/legendary.json', '/data/legendary.json'
+  ]);
   const upgrades = await fetchAny([
     './data/upgrades.json', 'data/upgrades.json', '/data/upgrades.json'
   ]);
 
-  data.cards = cards; data.summons = summons; data.enemies = enemies; data.upgrades = upgrades;
+  data.cards = cards; data.summons = summons; data.enemies = enemies; data.upgrades = upgrades; data.legendary = legendary || [];
 }
-
 
 // Helper: create a deck, start an encounter and build the UI context object.
 function createEncounterSession(enemyIndex, chosenIds, rng){
@@ -78,6 +80,12 @@ function createEncounterSession(enemyIndex, chosenIds, rng){
   let currentEnemyIndex = enemyIndex || 0;
   let enemy = data.enemies[currentEnemyIndex];
   let encounter = startEncounter({...enemy}, deck, rng, { apPerTurn: meta.apPerTurn || 3 });
+  // defensive: ensure per-encounter flags are fresh
+  try{
+    encounter.summonUsed = encounter.summonUsed || {};
+    encounter.summonCooldowns = encounter.summonCooldowns || {};
+    encounter.exhaustedThisEncounter = encounter.exhaustedThisEncounter || [];
+  }catch(e){}
 
   const runSummary = { defeated: [], diedTo: null, ipEarned: 0 };
 
@@ -117,7 +125,7 @@ function createEncounterSession(enemyIndex, chosenIds, rng){
         if(ctx.setMessage) ctx.setMessage(heroName+' dealt '+res.dmg+' damage. '+enemyName+' HP: '+res.enemyHp);
         try{
           if(res.dmg && res.dmg > 0){
-            const sfxCandidates = ['./assets/sfx/player_attack.mp3','assets/sfx/player_attack.mp3','/assets/sfx/player_attack.mp3','./assets/music/player_attack.mp3','assets/music/player_attack.mp3','/assets/music/player_attack.mp3'];
+            const sfxCandidates = ['./assets/sfx/player_attack.mp3'];
             AudioManager.playSfx(sfxCandidates, { volume: 1.0 });
           }
         }catch(e){}
@@ -145,7 +153,9 @@ function createEncounterSession(enemyIndex, chosenIds, rng){
       return res;
     },
     useSummon(id, targetIndex=null){
-      const s = data.summons.find(x=>x.id===id);
+      // look for the summon in regular summons first, then in legendary pool
+      let s = (data.summons||[]).find(x=>x.id===id);
+      if(!s) s = (data.legendary||[]).find(x=>x.id===id);
       // Enforce once-per-run restriction using persisted meta.summonUsage
       try{
         if(s && s.restriction && s.restriction.toLowerCase().includes('once per run')){
@@ -153,7 +163,7 @@ function createEncounterSession(enemyIndex, chosenIds, rng){
           if(meta.summonUsage[s.id] && meta.summonUsage[s.id] > 0){
             const msg = 'Summon \'' + (s.name||s.id) + '\' is only usable once per run';
             if(ctx.setMessage) ctx.setMessage(msg);
-            return { success:false, reason:'used_run' };
+            return { success:false };
           }
         }
       }catch(e){ /* ignore meta read errors */ }
@@ -180,6 +190,10 @@ function createEncounterSession(enemyIndex, chosenIds, rng){
       if(res && res.events && res.events.length) {
         messages = res.events.map(ev => {
           if(ev.type === 'stunned') return enemyName + ' stunned and skipped its turn';
+          if(ev.type === 'enemyDamage') {
+            const src = ev.sourceName || (ev.id ? ev.id : 'Ally');
+            return (src + ' dealt ' + (ev.dmg||0) + ' damage to ' + enemyName + '. HP: ' + (ev.enemyHp||0));
+          }
           if(ev.type === 'hit') {
               const name = ev.heroName || (encounter.playfield[ev.slot] && encounter.playfield[ev.slot].base && encounter.playfield[ev.slot].base.name) || ('space ' + (ev.slot+1));
               const totalDmg = (ev.tempTaken||0)+(ev.hpTaken||0);
@@ -201,8 +215,23 @@ function createEncounterSession(enemyIndex, chosenIds, rng){
           messages = [enemyName + ' turn passed'];
         }
       }
-      if(messages.length) ctx.setMessage(messages.join('\n'), 1000); // 1 second for enemy actions
+      // determine whether the encounter finished (player killed enemy) before playing SFX
       const finished = isFinished(encounter).winner;
+      // play enemy SFX for attacks only if the enemy wasn't killed by this action
+      if(finished !== 'player'){
+        try{
+          const hasAoE = res && Array.isArray(res.events) && res.events.some(ev => ev.attackType === 'aoe');
+          const hasSingle = res && Array.isArray(res.events) && res.events.some(ev => ev.attackType === 'single');
+          if(hasAoE){
+            const sfxCandidates = ['./assets/sfx/enemy_aoe.mp3'];
+            AudioManager.playSfx(sfxCandidates, { volume: 0.3 });
+          } else if(hasSingle){
+            const sfxCandidates = ['./assets/sfx/enemy_attack.mp3'];
+            AudioManager.playSfx(sfxCandidates, { volume: 0.2 });
+          }
+        }catch(e){}
+      }
+      if(messages.length) ctx.setMessage(messages.join('\n'), 1000); // 1 second for enemy actions
       if(finished === 'player'){
         // Player defeated the enemy — show an encounter-end screen summarizing the kill and IP reward
         const reward = encounter.enemy.ip_reward || 1;
@@ -271,7 +300,7 @@ function createEncounterSession(enemyIndex, chosenIds, rng){
             } else {
               // no more enemies -> end run
               try{ meta.runs = (meta.runs||0) + 1; saveMeta(meta); }catch(e){}
-              const endCtx = { data, runSummary, onRestart: ()=> navigate('start') };
+              const endCtx = { data, runSummary, onRestart: ()=>{ try{ meta.summonUsage = {}; saveMeta(meta); }catch(e){}; navigate('start'); } };
               // prevent any pending timeouts or future onStateChange calls from re-rendering the battle
               ctx.onStateChange = ()=>{};
               ctx.setMessage = ()=>{};
@@ -302,7 +331,7 @@ function createEncounterSession(enemyIndex, chosenIds, rng){
           }
           saveMeta(meta);
         }catch(e){}
-        const endCtx = { data, runSummary, vInterest, onRestart: ()=> navigate('start') };
+        const endCtx = { data, runSummary, vInterest, onRestart: ()=>{ try{ meta.summonUsage = {}; saveMeta(meta); }catch(e){}; navigate('start'); } };
         // prevent any pending timeouts or future onStateChange calls from re-rendering the battle
         ctx.onStateChange = ()=>{};
         ctx.setMessage = ()=>{};        
@@ -334,10 +363,8 @@ function handlePlayHeroAction(encounter, ctx, slot, targetIndex){
     }catch(e){}
   } else if(res.type === 'heal'){
     if(ctx.setMessage) ctx.setMessage('Hero healed '+res.healed+' HP (now '+res.hp+')');
-  } else if(res.type === 'support' && res.refreshed === 'volo'){
-    if(ctx.setMessage) ctx.setMessage("Support active: Volo ability available again");
   } else if(res.type === 'support'){
-    if(ctx.setMessage) ctx.setMessage('Support active: will be targeted by next single-target enemy attack');
+    if(ctx.setMessage) ctx.setMessage('Support ability used');
   }
   return res;
 }
@@ -521,6 +548,11 @@ async function startRun({seed, deckIds} = {}){
   try{
     meta.characterUsage = meta.characterUsage || {};
     chosen.forEach(id=>{ meta.characterUsage[id] = (meta.characterUsage[id] || 0) + 1; });
+    saveMeta(meta);
+  }catch(e){ /* ignore */ }
+  // Reset once-per-run usage tracking (e.g., legendary summons) at run start
+  try{
+    meta.summonUsage = {};
     saveMeta(meta);
   }catch(e){ /* ignore */ }
   const session = createEncounterSession(0, chosen, RNG);

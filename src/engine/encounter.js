@@ -1,5 +1,9 @@
+import { AudioManager } from './audio.js';
+
 export function startEncounter(enemyDef, deck, rng, opts={}){
   const enemy = { ...enemyDef };
+  // ensure a stable maxHp value is present (data uses `hp` as the base HP)
+  if(typeof enemy.maxHp !== 'number') enemy.maxHp = typeof enemy.hp === 'number' ? enemy.hp : (enemy.maxHp || null);
   const state = {
     enemy,
     rng,
@@ -12,6 +16,7 @@ export function startEncounter(enemyDef, deck, rng, opts={}){
     exhaustedThisEncounter: [],
     summonUsed: {},
     summonCooldowns: {}
+    ,pendingEffects: []
   };
   // All character cards should already be provided in `deck.hand` by the deck builder.
   // Drawing has been removed — no action needed here.
@@ -31,8 +36,10 @@ function _selectSingleTargetIndex(state, rng){
 }
 
 function parseDamageFromAbility(card){
-  const m = (card.ability||"").match(/(\d+)/);
-  return m ? Number(m[1]) : 0;
+  const nums = (card.ability||"").match(/(\d+)/g);
+  if(!nums || nums.length === 0) return 0;
+  // prefer the last numeric value in the ability text (handles "Cure Wounds (4th level): Restore 5 HP")
+  return Number(nums[nums.length-1]);
 }
 
 // Healer helper: heals a single target or the whole party depending on
@@ -77,6 +84,8 @@ function resolveSingleTargetAttack(state, dmg, attackIndex, attackName){
       const heroName = h.base && h.base.name ? h.base.name : null;
       if(died){ state.exhaustedThisEncounter.push(h.base); state.playfield[idx] = null; }
       const ev = { type:'hit', slot: idx, dmg: dmg, tempTaken, hpTaken, remainingHp: died?0:h.hp, died, heroName };
+      // mark event with attack type for UI/audio handling
+      ev.attackType = 'single';
       if(typeof attackIndex === 'number') ev.attack = attackIndex+1;
       if(attackName) ev.attackName = attackName;
       events.push(ev);
@@ -103,6 +112,8 @@ function resolveAoEAttack(state, baseDmg, attackIndex, attackName){
       const heroName = h.base && h.base.name ? h.base.name : null;
       if(died){ state.exhaustedThisEncounter.push(h.base); state.playfield[i] = null; }
       const ev = { type:'hit', slot: i, dmg: baseDmg, tempTaken, hpTaken, remainingHp: died?0:h.hp, died, heroName };
+      // mark event with attack type for UI/audio handling
+      ev.attackType = 'aoe';
       if(typeof attackIndex === 'number') ev.attack = attackIndex+1;
       if(attackName) ev.attackName = attackName;
       events.push(ev);
@@ -186,6 +197,14 @@ export function playHeroAction(state, slotIndex, targetIndex=null){
       hero.helpSource = 'piter';
       state.ap -= 1;
       return { success:true, type:'support', slot: slotIndex, id:'piter' };
+    }
+
+    // Lumalia: schedule a delayed damage effect that triggers after the enemy turn
+    if (hero.base && hero.base.id === 'lumalia'){
+      state.pendingEffects = state.pendingEffects || [];
+      state.pendingEffects.push({ type: 'delayedDamage', id: 'lumalia', slot: slotIndex, dmg: 6, trigger: 'afterEnemy', sourceName: (hero.base && hero.base.name) ? hero.base.name : 'Lumalia' });
+      state.ap -= 1;
+      return { success:true, type:'support', slot: slotIndex, id:'lumalia', scheduled: true };
     }
 
     // Default support: no implicit behavior. Unknown support actions do nothing.
@@ -276,6 +295,23 @@ export function enemyAct(state){
   Object.keys(state.summonCooldowns).forEach(k=>{ if(state.summonCooldowns[k] > 0) state.summonCooldowns[k]--; });
   state.playfield.forEach(h=>{ if(h && h.defending) h.defending = false; });
   state.playfield.forEach(h=>{ if(h && h.helped) h.helped = false; });
+  // Process any pendingEffects that should trigger after the enemy acted
+  if(state.pendingEffects && Array.isArray(state.pendingEffects) && state.pendingEffects.length>0){
+    const remaining = [];
+    state.pendingEffects.forEach(eff=>{
+      if(eff && eff.trigger === 'afterEnemy'){
+        if(eff.type === 'delayedDamage'){
+          const dmg = Number(eff.dmg) || 0;
+          state.enemy.hp = Math.max(0, state.enemy.hp - dmg);
+          events.push({ type: 'enemyDamage', id: eff.id, slot: eff.slot, dmg: dmg, enemyHp: state.enemy.hp, sourceName: eff.sourceName });
+        }
+        // do not keep after triggered
+      } else {
+        remaining.push(eff);
+      }
+    });
+    state.pendingEffects = remaining;
+  }
   // drawing removed — cards remain static in `deck.hand` for duration of encounter
   return {did:'enemyAct', events};
 }
@@ -319,6 +355,7 @@ export function useSummon(state, summonDef, targetIndex=null){
     const max = state.enemy.maxHp || state.enemy.hp;
     const reduce = Math.floor((max * 0.5));
     state.enemy.hp = Math.max(0, state.enemy.hp - reduce);
+    try{ AudioManager.playSfx(['./assets/sfx/wave.mp3'], { volume: 2.0 }); }catch(e){}
   } 
   else {
     // fallback: try to parse numeric heal

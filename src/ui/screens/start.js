@@ -137,17 +137,28 @@ export function renderStart(root, ctx){
   const cardBox = el('div',{class:'card-grid panel'});
   container.appendChild(cardBox);
   const selected = new Set();
+  const cardsById = {};
+  function getUsedSlots(){
+    let sum = 0;
+    selected.forEach(id => {
+      const card = cardsById[id];
+      const cost = (card && typeof card.slot_cost !== 'undefined') ? Number(card.slot_cost) : 1;
+      if(!isNaN(cost)) sum += cost;
+    });
+    return sum;
+  }
   function updateSlotDisplay(){
-    const sel = selected.size;
-    const remaining = Math.max(0, slots - sel);
+    const used = getUsedSlots();
+    const remaining = Math.max(0, slots - used);
     remainingBadge.textContent = String(remaining);
-    selectedBadge.textContent = String(sel);
+    selectedBadge.textContent = String(used);
     // enable/disable the start button based on selection
-    try{ if(typeof startBtn !== 'undefined') startBtn.disabled = (sel === 0); }catch(e){}
+    try{ if(typeof startBtn !== 'undefined') startBtn.disabled = (used === 0); }catch(e){}
   }
   // render selectable cards: starters and any recruited/owned characters
   const ownedIds = (ctx.meta && Array.isArray(ctx.meta.ownedCards)) ? ctx.meta.ownedCards : [];
   (ctx.data.cards||[]).filter(c => c && (c.starter || ownedIds.includes(c.id))).forEach(c=>{
+    cardsById[c.id] = c;
     const tile = cardTile(c, { hideCost: true, slotFirst: true });
     tile.style.cursor='pointer';
     tile.addEventListener('click',()=>{
@@ -157,9 +168,14 @@ export function renderStart(root, ctx){
         updateSlotDisplay();
         return;
       }
-      // prevent selecting more than available slots
-      if(selected.size >= slots){
-        if(ctx.setMessage) ctx.setMessage('Cannot select more than '+slots+' cards');
+      const used = getUsedSlots();
+      const cost = (typeof c.slot_cost !== 'undefined') ? Number(c.slot_cost) : 1;
+      if(isNaN(cost) || cost < 0){
+        if(ctx.setMessage) ctx.setMessage('Invalid slot cost for card');
+        return;
+      }
+      if(used + cost > slots){
+        if(ctx.setMessage) ctx.setMessage('Not enough party slots for '+c.name);
         return;
       }
       selected.add(c.id);

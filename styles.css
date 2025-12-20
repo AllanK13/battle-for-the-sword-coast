@@ -59,6 +59,21 @@ body{background:linear-gradient(180deg,var(--bg),#071024);color:#e6eef8}
   padding: 0 !important;
 }
 
+.upgrades-screen .card-wrap{
+  /* match the base card height so every tile occupies the same vertical space */
+  height: 460px;
+  display:flex;
+  flex-direction:column;
+}
+.upgrades-screen .card{
+  /* let the card fill the wrapper and be a column flex so footer can use margin-top:auto */
+  height: auto !important;
+  flex: 1 1 auto !important;
+  display:flex !important;
+  flex-direction:column !important;
+}
+.upgrades-screen .card .card-footer{ margin-top: auto }
+
 /* IP display on Upgrades screen */
 .upgrades-screen .ip-display{
   display:inline-flex;
@@ -100,6 +115,11 @@ body{background:linear-gradient(180deg,var(--bg),#071024);color:#e6eef8}
 .upgrades-screen .meta-grid .card .card-name{font-size:24px;margin:8px 0}
 .upgrades-screen .meta-grid .card button{padding:6px 8px;font-size:13px}
 
+/* Make metagame upgrade tiles shorter than regular upgrade tiles */
+.upgrades-screen .meta-grid .card-wrap{ height:150px !important; }
+.upgrades-screen .meta-grid .card{ height:150px !important; flex:0 0 auto !important }
+.upgrades-screen .meta-grid .card .card-footer{ margin-top:auto }
+
 /* Stats screen styling */
 .stats-screen{max-width:880px;margin:20px auto;padding:18px;display:flex;flex-direction:column;gap:14px;align-items:stretch}
 .stats-title{font-size:28px;text-align:center;color:var(--accent);margin:0}
@@ -133,6 +153,40 @@ body{background:linear-gradient(180deg,var(--bg),#071024);color:#e6eef8}
   -webkit-text-stroke: 0.6px #000;
 }
 .card-desc{font-size:14px;font-style:italic;white-space:normal;word-break:break-word;overflow:auto;margin-top:6px;color:#e6f3ea}
+
+/* Footer placed inside a card so action buttons anchor to the bottom */
+.card .card-footer{ margin-top: auto; padding-top:8px; display:flex; gap:8px }
+.card .card-footer .btn{ flex:1 }
+
+/* Temp HP badge for summons/abilities (top-left of card) */
+.card .card-temp-hp{
+  position:absolute;
+  top:8px;
+  left:8px;
+  background:rgba(0,0,0,0.6);
+  color:#fff;
+  padding:4px 8px;
+  border-radius:8px;
+  font-weight:800;
+  font-size:13px;
+  z-index:50;
+  box-shadow:0 4px 10px rgba(0,0,0,0.45);
+}
+
+/* Enemy stun badge: bottom-right of enemy card image */
+.enemy-stun-badge{
+  position:absolute;
+  right:8px;
+  bottom:8px;
+  background:rgba(255,255,255,0.1);
+  color:#fff;
+  padding:6px 8px;
+  border-radius:8px;
+  font-weight:900;
+  font-size:16px;
+  z-index:60;
+  box-shadow:0 6px 18px rgba(0,0,0,0.45);
+}
 
 /* slot and enemy HP styling */
 .slot-header{font-size:15px;font-weight:800;color:var(--accent);font-family:Segoe UI, Roboto, "Trebuchet MS", Georgia, serif;text-shadow:0 1px 0 rgba(0,0,0,0.6);margin-bottom:6px}
@@ -168,6 +222,24 @@ body{background:linear-gradient(180deg,var(--bg),#071024);color:#e6eef8}
   .card{width:140px;height:260px}
   .card-wrap{width:140px}
 }
+
+/* Make sure upgrades screen card-wrap matches responsive card heights */
+@media (min-width:1001px){ .upgrades-screen .card-wrap{ height:460px } }
+@media (max-width:1000px){ .upgrades-screen .card-wrap{ height:400px } }
+@media (max-width:720px){ .upgrades-screen .card-wrap{ height:360px } }
+@media (max-width:420px){ .upgrades-screen .card-wrap{ height:320px } }
+
+/* Prevent cards on the Upgrades screen from resizing with the window
+   Keep a fixed tile size so footers/buttons remain aligned regardless
+   of viewport width. Use !important to override responsive rules. */
+.upgrades-screen .card-wrap,
+.upgrades-screen .card{
+  width: 220px !important;
+  height: 450px !important;
+  flex: 0 0 auto !important;
+  transition: none !important;
+}
+.upgrades-screen .card .card-image{ max-height: calc(100% - 72px) !important }
 
 /* Summons title styling */
 .summons-title{font-size:18px;text-align:left;color:var(--accent);font-weight:800;letter-spacing:0.6px;margin:6px 0;text-shadow:0 1px 0 rgba(0,0,0,0.6)}

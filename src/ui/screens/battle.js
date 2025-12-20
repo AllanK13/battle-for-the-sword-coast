@@ -1,6 +1,7 @@
 import { el, cardTile } from '../renderer.js';
 import { navigate } from '../router.js';
 import { AudioManager } from '../../engine/audio.js';
+import { saveMeta } from '../../engine/meta.js';
 
 function slotNode(slotObj, idx, handlers={}, highlight=false, targetHighlight=false){
   const container = el('div',{class:'card-wrap panel'});
@@ -14,8 +15,8 @@ function slotNode(slotObj, idx, handlers={}, highlight=false, targetHighlight=fa
     container.addEventListener('click',()=>{ if(handlers.onSelect) handlers.onSelect(idx); else if(handlers.onClick) handlers.onClick(idx); });
     return container;
   }
-  // hero image tile (show current HP in the card stats)
-  const tile = cardTile(slotObj.base, { currentHp: slotObj.hp, hideSlot: true, hideCost: true });
+  // hero image tile (show current HP in the card stats) and temp HP badge
+  const tile = cardTile(slotObj.base, { currentHp: slotObj.hp, tempHp: slotObj.tempHp, hideSlot: true, hideCost: true });
   container.appendChild(tile);
   // show a defend/shield badge when this hero is defending
   if(slotObj.defending){
@@ -77,7 +78,25 @@ export function renderBattle(root, ctx){
   const endRunBtn = el('button',{class:'btn end-run-btn'},['Give Up']);
   endRunBtn.addEventListener('click',()=>{
     const ok = window.confirm('Give up? This will forfeit current progress and return to the start screen.');
-    if(ok){ navigate('start'); }
+    if(!ok) return;
+    // disable button to avoid re-entrancy
+    try{ endRunBtn.setAttribute('disabled',''); }catch(e){}
+    // defensively clear per-run usage and persist
+    try{ if(ctx && ctx.meta) { ctx.meta.summonUsage = {}; saveMeta(ctx.meta); } }catch(e){ console.debug('GiveUp: saveMeta failed', e); }
+    // attempt immediate navigation, then fall back to forced page load if that fails
+    try{
+      try{ navigate('start'); console.debug('GiveUp: navigate(start) invoked'); }
+      catch(e){ console.debug('GiveUp: navigate threw', e); }
+      // schedule forced navigation fallbacks in case route navigation doesn't take effect
+      setTimeout(()=>{
+        try{ window.location.assign(window.location.pathname || '/'); console.debug('GiveUp: forced assign to pathname'); }
+        catch(e){ console.debug('GiveUp: forced assign failed', e); }
+      }, 100);
+      setTimeout(()=>{
+        try{ window.location.reload(); console.debug('GiveUp: forced reload'); }
+        catch(e){ console.debug('GiveUp: reload failed', e); }
+      }, 500);
+    }catch(e){ console.debug('GiveUp: unexpected error', e); }
   });
   if(typeof ctx._lastAp === 'undefined') ctx._lastAp = ctx.encounter.ap;
   if(ctx._lastAp > ctx.encounter.ap){
@@ -220,7 +239,9 @@ export function renderBattle(root, ctx){
     summonsWrap.appendChild(el('h3',{class:'summons-title'},['Summons']));
     const sGrid = el('div',{class:'card-grid summons-small'});
     const ownedSummons = (ctx.meta && Array.isArray(ctx.meta.ownedSummons)) ? ctx.meta.ownedSummons : [];
-    const availableSummons = (ctx.data.summons || []).filter(s => ownedSummons.includes(s.id));
+    // include legendary summons in the available pool if purchased
+    const allSummons = ([]).concat(ctx.data.summons || [], ctx.data.legendary || []);
+    const availableSummons = allSummons.filter(s => ownedSummons.includes(s.id));
     if(availableSummons.length === 0){
       sGrid.appendChild(el('div',{class:'muted'},['No summons available']));
     }
@@ -240,8 +261,7 @@ export function renderBattle(root, ctx){
           return;
         }
         const res = ctx.useSummon(s.id);
-        if(!res.success) { if(ctx.setMessage) ctx.setMessage(res.reason||'failed'); }
-        else { if(ctx.setMessage) ctx.setMessage('Summon cast: '+s.name); ctx.onStateChange(); }
+        if(res && res.success){ ctx.onStateChange(); }
       });
       // insert the Cast button above the card content
       sCard.insertBefore(btn, sCard.firstChild);
@@ -264,6 +284,13 @@ export function renderBattle(root, ctx){
     else enemyCard.appendChild(hpLabel);
   } else {
     enemyCard.appendChild(hpLabel);
+  }
+  // show stun badge bottom-right when enemy is stunned
+  const stunned = ctx.encounter.enemy && (ctx.encounter.enemy.stunnedTurns || 0) > 0;
+  if(stunned){
+    try{ enemyCard.style.position = enemyCard.style.position || 'relative'; }catch(e){}
+    const stunBadge = el('div',{class:'enemy-stun-badge', title: 'Stunned: '+(ctx.encounter.enemy.stunnedTurns||0)+' turns'},['💫']);
+    enemyCard.appendChild(stunBadge);
   }
   enemyArea.appendChild(enemyCard);
 
@@ -331,8 +358,6 @@ export function renderBattle(root, ctx){
         // if summon pending, apply summon to this target
         if(pendingSummon){
           const res = ctx.useSummon(pendingSummon.id, idx);
-          if(!res.success) { if(ctx.setMessage) ctx.setMessage(res.reason||'failed'); }
-          else { if(ctx.setMessage) ctx.setMessage('Summon applied'); }
           ctx.pendingSummon = null;
           ctx.onStateChange();
           return;
@@ -386,8 +411,6 @@ export function renderBattle(root, ctx){
         // clicking a slot same behavior as onSelect for pending actions
         if(pendingSummon){
           const res = ctx.useSummon(pendingSummon.id, idx);
-          if(!res.success) { if(ctx.setMessage) ctx.setMessage(res.reason||'failed'); }
-          else { if(ctx.setMessage) ctx.setMessage('Summon applied'); }
           ctx.pendingSummon = null;
           ctx.onStateChange();
           return;

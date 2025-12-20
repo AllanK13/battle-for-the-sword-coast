@@ -27,16 +27,15 @@ export function renderUpgrades(root, ctx){
     const grid = el('div',{class:'card-grid'},[]);
     (ctx.data.cards||[]).filter(c=>Number(c.tier)===t).forEach(c=>{
       const cardWrap = el('div',{class:'card-wrap panel'},[]);
-      cardWrap.appendChild(cardTile(c,{hideSlot:false, hideCost:false}));
       const footer = el('div',{class:'row'},[]);
       const owned = (ctx.meta && Array.isArray(ctx.meta.ownedCards) && ctx.meta.ownedCards.includes(c.id));
       const cost = Number(c.ip_cost||0);
-      const btn = el('button',{class:'btn'},[ owned? 'Recruited' : (cost>0? ('Buy: '+cost+' IP') : 'Take') ]);
+      const btn = el('button',{class:'btn'},[ owned? 'Recruited' : (cost>0? ('Recruit: '+cost+' IP') : 'Take') ]);
       if(owned) btn.setAttribute('disabled','');
       if(!owned && cost>0 && ctx.meta && ctx.meta.ip < cost) btn.setAttribute('disabled','');
       btn.addEventListener('click',()=>{ if(ctx.buyLegendary) ctx.buyLegendary(c.id); else if(ctx.setMessage) ctx.setMessage('No buy handler'); });
       footer.appendChild(btn);
-      cardWrap.appendChild(footer);
+      cardWrap.appendChild(cardTile(c,{hideSlot:false, hideCost:true, footer}));
       grid.appendChild(cardWrap);
     });
     tierWrap.appendChild(grid);
@@ -53,15 +52,14 @@ export function renderUpgrades(root, ctx){
     // only show this summon in the shop if it's a starter, already owned, or the player has earned IP (Town unlocked)
     if(!owned && !s.starter && !hasEarnedIp) return;
     const wrap = el('div',{class:'card-wrap panel'},[]);
-    wrap.appendChild(cardTile(s,{hideSlot:true, hideCost:false}));
     const footer = el('div',{class:'row'},[]);
     const cost = Number(s.ip_cost||0);
-    const btn = el('button',{class:'btn'},[ owned? 'Recruited' : ('Buy: '+cost+' IP') ]);
+    const btn = el('button',{class:'btn'},[ owned? 'Recruited' : ('Recruit: '+cost+' IP') ]);
     if(owned) btn.setAttribute('disabled','');
     if(!owned && ctx.meta && ctx.meta.ip < cost) btn.setAttribute('disabled','');
     btn.addEventListener('click',()=>{ if(ctx.buyLegendary) ctx.buyLegendary(s.id); else if(ctx.setMessage) ctx.setMessage('No buy handler'); });
     footer.appendChild(btn);
-    wrap.appendChild(footer);
+    wrap.appendChild(cardTile(s,{hideSlot:true, hideCost:true, footer}));
     sGrid.appendChild(wrap);
   });
   summonsSec.appendChild(sGrid);
@@ -73,14 +71,24 @@ export function renderUpgrades(root, ctx){
   (ctx.data.upgrades||[]).forEach(u=>{
     const item = el('div',{class:'panel card'},[]);
     item.appendChild(el('div',{class:'card-name'},[u.upgrade||u.id]));
-    item.appendChild(el('div',{class:'muted card-stat'},['Cost: '+u.ip_cost]));
     const purchased = ctx.meta && Array.isArray(ctx.meta.purchasedUpgrades) && ctx.meta.purchasedUpgrades.includes(u.id);
-    const prereqLocked = (u.id === 'ap_5') && !(ctx.meta && Array.isArray(ctx.meta.purchasedUpgrades) && ctx.meta.purchasedUpgrades.includes('ap_4'));
-    const affordable = ctx.meta && (ctx.meta.ip >= (u.ip_cost||0));
-    let label = 'Buy';
+    // determine if this upgrade is locked behind another purchase
+    let prereqLocked = false;
+    let prereqMessage = '';
+    const purchasedList = (ctx.meta && Array.isArray(ctx.meta.purchasedUpgrades)) ? ctx.meta.purchasedUpgrades : [];
+    const slotMatch = /^slot_(\d+)$/.exec(u.id);
+    if(slotMatch){
+      const n = Number(slotMatch[1]);
+      if(n > 1 && !purchasedList.includes('slot_'+(n-1))){ prereqLocked = true; prereqMessage = 'Requires previous slot'; }
+    } else if(u.id === 'ap_5' && !purchasedList.includes('ap_4')){
+      prereqLocked = true; prereqMessage = 'Requires AP to 4';
+    }
+    const cost = Number(u.ip_cost||0);
+    const affordable = ctx.meta && (ctx.meta.ip >= cost);
+    let label;
     if(purchased) label = 'Purchased';
-    else if(prereqLocked) label = 'Requires AP to 4';
-    else if(!affordable) label = 'Buy';
+    else if(prereqLocked) label = (prereqMessage || 'Requires previous purchase');
+    else label = 'Buy: ' + cost + ' IP';
     const b = el('button',{class:'btn'},[ label ]);
     if(purchased || prereqLocked) b.setAttribute('disabled','');
     else if(!affordable) b.setAttribute('disabled','');
@@ -97,12 +105,17 @@ export function renderUpgrades(root, ctx){
     const lGrid = el('div',{class:'card-grid'},[]);
     (ctx.data.legendary||[]).forEach(it=>{
       const elCard = el('div',{class:'card-wrap panel'},[]);
-      elCard.appendChild(el('div',{class:'card-name'},[it.name||it.id]));
-      elCard.appendChild(el('div',{},['Cost: '+it.ip_cost]));
-      const buy = el('button',{class:'btn'},['Buy']);
-      if(ctx.meta && ctx.meta.ip < (it.ip_cost||0)) buy.setAttribute('disabled','');
+      // cost and purchase button
+      const footer = el('div',{class:'row'},[]);
+      const owned = (ctx.meta && Array.isArray(ctx.meta.ownedSummons) && ctx.meta.ownedSummons.includes(it.id));
+      const cost = Number(it.ip_cost||0);
+      const buy = el('button',{class:'btn'},[ owned ? 'Purchased' : ('Recruit: '+cost+' IP') ]);
+      if(owned) buy.setAttribute('disabled','');
+      else if(ctx.meta && ctx.meta.ip < cost) buy.setAttribute('disabled','');
       buy.addEventListener('click',()=>{ if(ctx.buyLegendary) ctx.buyLegendary(it.id); else if(ctx.setMessage) ctx.setMessage('No buy handler'); });
-      elCard.appendChild(buy);
+      footer.appendChild(buy);
+      // use the shared cardTile renderer so images/icons are shown consistently
+      elCard.appendChild(cardTile(it, { hideSlot: true, hideCost: true, footer }));
       lGrid.appendChild(elCard);
     });
     legSec.appendChild(lGrid);
