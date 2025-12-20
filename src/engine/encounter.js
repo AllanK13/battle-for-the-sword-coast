@@ -35,20 +35,100 @@ function parseDamageFromAbility(card){
   return m ? Number(m[1]) : 0;
 }
 
-export function placeHero(state, card){
-  // find first empty slot or return false
-  const idx = state.playfield.findIndex(s=>s===null);
-  if(idx === -1) return { success:false };
-  const hero = { cardId: card.id, hp: card.hp, base: card, tempHp: 0 };
-  state.playfield[idx] = hero;
-  return { success:true, slot: idx };
+// Healer helper: heals a single target or the whole party depending on
+// the card's ability text or an explicit targetIndex of 'all'. Returns
+// a result object similar to the previous playHeroAction heal return.
+function resolveHeal(state, slotIndex, amount, targetIndex=null){
+  const hero = state.playfield[slotIndex];
+  if(!hero) return { success:false, reason:'no hero' };
+  const abilityText = (hero.base && hero.base.ability) ? hero.base.ability.toLowerCase() : '';
+  const isParty = (targetIndex === 'all') || /all|party|everyone|entire/i.test(abilityText) || (hero.base && hero.base.actionTarget === 'party');
+  const healAmount = Number(amount) || 1;
+  if(isParty){
+    const healedSlots = [];
+    state.playfield.forEach((h,i)=>{ if(h){ const before = h.hp; h.hp = Math.min(h.base.hp, h.hp + healAmount); const healed = h.hp - before; if(healed>0) healedSlots.push({ slot:i, healed, hp: h.hp }); } });
+    state.ap -= 1;
+    return { success:true, type:'heal', healed: healAmount, targets: healedSlots };
+  }
+  const targetSlot = (typeof targetIndex === 'number' && state.playfield[targetIndex]) ? state.playfield[targetIndex] : hero;
+  const before = targetSlot.hp;
+  targetSlot.hp = Math.min(targetSlot.base.hp, targetSlot.hp + healAmount);
+  state.ap -= 1;
+  const healed = targetSlot.hp - before;
+  const slot = state.playfield.findIndex(h=>h===targetSlot);
+  return { success:true, type:'heal', healed, slot, hp: targetSlot.hp };
 }
 
-export function placeHeroAt(state, slotIndex, card){
-  if(typeof slotIndex !== 'number' || slotIndex < 0 || slotIndex >= state.playfield.length) return { success:false, reason: 'invalid slot' };
-  if(state.playfield[slotIndex] !== null) return { success:false, reason: 'slot occupied' };
+// Centralized single-target attack resolution. Picks a target using
+// `_selectSingleTargetIndex`, applies temp HP / defending logic, mutates
+// state, and returns an array of event objects suitable for the UI.
+function resolveSingleTargetAttack(state, dmg, attackIndex, attackName){
+  const events = [];
+  const idx = _selectSingleTargetIndex(state, state.rng);
+  if(idx !== -1){
+    const h = state.playfield[idx];
+    if(h){
+      let remaining = h.defending ? 0 : dmg;
+      let tempTaken = 0;
+      if(h.tempHp && h.tempHp>0){ const take = Math.min(h.tempHp, remaining); h.tempHp -= take; tempTaken = take; remaining -= take; }
+      let hpTaken = 0;
+      if(remaining>0){ h.hp -= remaining; hpTaken = remaining; }
+      const died = h.hp <= 0;
+      const heroName = h.base && h.base.name ? h.base.name : null;
+      if(died){ state.exhaustedThisEncounter.push(h.base); state.playfield[idx] = null; }
+      const ev = { type:'hit', slot: idx, dmg: dmg, tempTaken, hpTaken, remainingHp: died?0:h.hp, died, heroName };
+      if(typeof attackIndex === 'number') ev.attack = attackIndex+1;
+      if(attackName) ev.attackName = attackName;
+      events.push(ev);
+    }
+  }
+  return events;
+}
+
+// Centralized AOE attack resolution. Applies the AOE damage rules used
+// throughout the file (base damage halved, defending halves again),
+// mutates state, and returns an array of events.
+function resolveAoEAttack(state, baseDmg, attackIndex, attackName){
+  const events = [];
+  for(let i=0;i<state.playfield.length;i++){
+    const h = state.playfield[i];
+    if(h){
+      let remaining = Math.ceil(baseDmg/2);
+      if(h.defending) remaining = Math.ceil(remaining/2);
+      let tempTaken = 0;
+      if(h.tempHp && h.tempHp>0){ const take = Math.min(h.tempHp, remaining); h.tempHp -= take; tempTaken = take; remaining -= take; }
+      let hpTaken = 0;
+      if(remaining>0){ h.hp -= remaining; hpTaken = remaining; }
+      const died = h.hp <= 0;
+      const heroName = h.base && h.base.name ? h.base.name : null;
+      if(died){ state.exhaustedThisEncounter.push(h.base); state.playfield[i] = null; }
+      const ev = { type:'hit', slot: i, dmg: baseDmg, tempTaken, hpTaken, remainingHp: died?0:h.hp, died, heroName };
+      if(typeof attackIndex === 'number') ev.attack = attackIndex+1;
+      if(attackName) ev.attackName = attackName;
+      events.push(ev);
+    }
+  }
+  return events;
+}
+
+// Unified placeHero: either place into specified slot or into first empty slot.
+// If called as placeHero(state, slotIndex, card) it will attempt that slot.
+// If called as placeHero(state, card) it will place into the first empty slot (prefers 0,1 then 2).
+// Placing into an empty slot does NOT cost AP. The placed card is removed from `state.deck.hand` if present.
+export function placeHero(state, slotIndex, card){
+  // Require explicit slotIndex; do not auto-place. Caller/UI should prompt for slot.
+  if(card == null) return { success:false, reason:'no card' };
+  if(typeof slotIndex !== 'number' || slotIndex < 0 || slotIndex >= state.playfield.length) return { success:false, reason:'invalid slot' };
+  if(state.playfield[slotIndex] !== null) return { success:false, reason:'slot occupied' };
   const hero = { cardId: card.id, hp: card.hp, base: card, tempHp: 0 };
   state.playfield[slotIndex] = hero;
+  // remove one copy from hand if present
+  try{
+    if(state.deck && Array.isArray(state.deck.hand)){
+      const idx = state.deck.hand.findIndex(c=> c && c.id === card.id);
+      if(idx !== -1) state.deck.hand.splice(idx,1);
+    }
+  }catch(e){ /* ignore hand removal failures */ }
   return { success:true, slot: slotIndex };
 }
 
@@ -63,7 +143,7 @@ export function playHeroAttack(state, slotIndex){
   // reset multiplier if it was applied
   if(mult !== 1) state.nextAttackMultiplier = 1;
   state.ap -= 1;
-  return { success:true, dmg, enemyHp: state.enemy.hp };
+  return { success:true, type: 'attack', dmg, enemyHp: state.enemy.hp };
 }
 
 export function playHeroAction(state, slotIndex, targetIndex=null){
@@ -73,44 +153,47 @@ export function playHeroAction(state, slotIndex, targetIndex=null){
   if(!hero) return { success:false, reason:'no hero' };
   const ability = (hero.base && hero.base.ability) ? hero.base.ability.toLowerCase() : '';
   const amount = parseDamageFromAbility(hero.base);
-  // prefer explicit actionType on the card, fallback to ability-text parsing
-  const actionType = (hero.base && hero.base.actionType) ? hero.base.actionType : ( /heal|cure|restore|regen|heals?/i.test(ability) ? 'heal' : 'attack' );
-  // support-type action (e.g., Piter's Help) - mark this hero as the redirect target for the next enemy single-target attack
+  // Determine explicit action type: prefer `actionType` then parse ability text.
+  // Normalize to one of: 'dps', 'healer', 'support'. Default -> 'dps'.
+  let actionType = (hero.base && hero.base.actionType) ? String(hero.base.actionType).toLowerCase() : null;
+  if(!actionType){
+    if(/heal|cure|restore|regen|heals?/i.test(ability)) actionType = 'healer';
+    else actionType = 'dps';
+  }
+  // DPS: delegate to the existing attack function which handles AP and multiplier
+  if(actionType === 'dps' || actionType === 'attack'){
+    return playHeroAttack(state, slotIndex);
+  }
+  // Healer: use the centralized resolveHeal helper (handles party or single-target heals)
+  if(actionType === 'healer' || actionType === 'heal'){
+    return resolveHeal(state, slotIndex, amount, targetIndex);
+  }
+  // Support: explicit id-based handling for support heroes (add more branches as needed)
   if(actionType === 'support'){
-    // Special: Shalendra's ability refreshes Volo's summon (make it available again)
-    if (hero.base && (hero.base.id === 'shalendra' || /shalendra/i.test(hero.base.name))) {
+    // Shalendra: refresh Volo's summon availability for this encounter
+    if (hero.base && hero.base.id === 'shalendra') {
       if (!state.summonUsed) state.summonUsed = {};
       state.summonUsed['volo'] = false;
-      // Also reset cooldown if present
       if (!state.summonCooldowns) state.summonCooldowns = {};
       state.summonCooldowns['volo'] = 0;
       state.ap -= 1;
-      return { success:true, type:'support', slot: slotIndex, refreshed: 'volo' };
+      return { success:true, type:'support', slot: slotIndex, id:'shalendra', refreshed: 'volo' };
     }
-    // Default support: mark as helped
-    hero.helped = true;
-    state.ap -= 1;
-    return { success:true, type:'support', slot: slotIndex };
+
+    // Piter: special help action (marks this hero as helped for enemy single-target selection)
+    if (hero.base && hero.base.id === 'piter'){
+      hero.helped = true;
+      hero.helpSource = 'piter';
+      state.ap -= 1;
+      return { success:true, type:'support', slot: slotIndex, id:'piter' };
+    }
+
+    // Default support: no implicit behavior. Unknown support actions do nothing.
+    return { success:false, reason:'no support action' };
   }
-  const isHeal = (actionType === 'heal');
-  if(isHeal){
-    // if a targetIndex is provided, heal the target; otherwise heal self
-    const targetSlot = (typeof targetIndex === 'number' && state.playfield[targetIndex]) ? state.playfield[targetIndex] : hero;
-    const before = targetSlot.hp;
-    targetSlot.hp = Math.min(targetSlot.base.hp, targetSlot.hp + (amount || 1));
-    state.ap -= 1;
-    const healed = targetSlot.hp - before;
-    const slot = (targetSlot === hero) ? slotIndex : state.playfield.findIndex(h=>h===targetSlot);
-    return { success:true, type:'heal', healed, slot, hp: targetSlot.hp };
-  }
-  // fallback to attack behavior
-  const baseDmg = amount || 0;
-  const mult = state.nextAttackMultiplier || 1;
-  const dmg = Math.floor(baseDmg * mult);
-  state.enemy.hp -= dmg;
-  if(mult !== 1) state.nextAttackMultiplier = 1;
-  state.ap -= 1;
-  return { success:true, type:'attack', dmg, enemyHp: state.enemy.hp };
+
+  // Unknown/unsupported action types do nothing
+  return { success:false, reason:'unsupported actionType' };
 }
 
 export function defendHero(state, slotIndex){
@@ -124,8 +207,14 @@ export function defendHero(state, slotIndex){
 }
 
 export function replaceHero(state, slotIndex, newCard){
-  if(state.ap <= 0) return { success:false, reason:'no AP' };
   const old = state.playfield[slotIndex];
+  // If the slot is empty, placing the hero should be free (no AP cost).
+  if(!old){
+    state.playfield[slotIndex] = { cardId: newCard.id, hp: newCard.hp, base: newCard };
+    return { success:true, slot: slotIndex };
+  }
+  // Replacement of an occupied slot costs AP.
+  if(state.ap <= 0) return { success:false, reason:'no AP' };
   if(old){
     // Return the replaced character card back into the player's hand so it can be reused
     // during the remainder of the encounter (killed heroes remain removed).
@@ -165,77 +254,6 @@ export function enemyAct(state){
   const isAOE = rng ? (rng.int(2)===0) : (Math.random() < 0.3);
   const dmg = state.enemy.attack || 1;
   const events = [];
-  // Special behavior for Snurre: three single-target attacks with fixed dmg
-  if(state.enemy && (state.enemy.id === 'snurre' || (state.enemy.name && state.enemy.name.toLowerCase().includes('snurre')))){
-    const atkIndex = rng ? rng.int(3) : Math.floor(Math.random()*3);
-    const atkDmg = (atkIndex === 0) ? 5 : (atkIndex === 1) ? 6 : 7;
-    const attackName = (atkIndex === 0) ? 'Rock Throw' : (atkIndex === 1) ? 'Greatsword' : 'Legendary Attack';
-    // prefer helped hero (support 'Help') if present
-    const idx = _selectSingleTargetIndex(state, rng);
-    if(idx !== -1){
-      let h = state.playfield[idx];
-      if(h){
-        let remaining = h.defending ? 0 : atkDmg;
-        let tempTaken = 0;
-        if(h.tempHp && h.tempHp>0){ const take = Math.min(h.tempHp, remaining); h.tempHp -= take; tempTaken = take; remaining -= take; }
-        let hpTaken = 0;
-        if(remaining>0) { h.hp -= remaining; hpTaken = remaining; }
-        const died = h.hp <= 0;
-        const heroName = h.base && h.base.name ? h.base.name : null;
-        if(died){ state.exhaustedThisEncounter.push(h.base); state.playfield[idx]=null }
-        events.push({ type:'hit', slot:idx, dmg:atkDmg, tempTaken, hpTaken, remainingHp: died?0:h.hp, died, heroName, attack: atkIndex+1, attackName });
-      }
-    }
-    // after performing Snurre attack(s), perform end-of-enemy-turn housekeeping
-    state.ap = state.apPerTurn;
-    Object.keys(state.summonCooldowns).forEach(k=>{ if(state.summonCooldowns[k] > 0) state.summonCooldowns[k]--; });
-    state.playfield.forEach(h=>{ if(h && h.defending) h.defending = false; });
-    state.playfield.forEach(h=>{ if(h && h.helped) h.helped = false; });
-    // drawing removed — cards remain static in `deck.hand` for duration of encounter
-    return {did:'enemyAct', events};
-  }
-  // Special behavior for Twig Blight: choose one of three single-target attacks each turn
-  if(state.enemy && (state.enemy.id === 'twig_blight' || (state.enemy.name && state.enemy.name.toLowerCase().includes('twig')))){
-    const atkIndex = rng ? rng.int(3) : Math.floor(Math.random()*3);
-    const atkDmg = (atkIndex === 2) ? 2 : 1; // attacks 0 & 1 -> 1 dmg, attack 2 -> 2 dmg
-    const attackName = (atkIndex === 2) ? 'Lash' : 'Claws';
-    // prefer helped hero (support 'Help') if present
-    const idx = _selectSingleTargetIndex(state, rng);
-    if(idx !== -1){
-      let h = state.playfield[idx];
-      if(h){
-        let remaining = h.defending ? 0 : atkDmg;
-        let tempTaken = 0;
-        if(h.tempHp && h.tempHp>0){ const take = Math.min(h.tempHp, remaining); h.tempHp -= take; tempTaken = take; remaining -= take; }
-        let hpTaken = 0;
-        if(remaining>0) { h.hp -= remaining; hpTaken = remaining; }
-        const died = h.hp <= 0;
-        const heroName = h.base && h.base.name ? h.base.name : null;
-        if(died){ state.exhaustedThisEncounter.push(h.base); state.playfield[idx]=null }
-        events.push({ type:'hit', slot:idx, dmg:atkDmg, tempTaken, hpTaken, remainingHp: died?0:h.hp, died, heroName, attack: atkIndex+1, attackName });
-      }
-    }
-    // after performing twig blight attack(s), perform end-of-enemy-turn housekeeping (same as below)
-    // after enemy turn, reset AP for player next round
-    state.ap = state.apPerTurn;
-    // decrement summon cooldowns
-    Object.keys(state.summonCooldowns).forEach(k=>{
-      if(state.summonCooldowns[k] > 0) state.summonCooldowns[k]--;
-    });
-    // clear defending flags -- defending only lasts for the enemy's action
-    state.playfield.forEach(h=>{ if(h && h.defending) h.defending = false; });
-    // clear helped flags (support 'Help' applies to the next enemy single-target attack only)
-    state.playfield.forEach(h=>{ if(h && h.helped) h.helped = false; });
-    // drawing removed — cards remain static in `deck.hand` for duration of encounter
-    return {did:'enemyAct', events};
-  }
-  // If the enemy defines an `attacks` array, pick one at random and use its
-  // type/dmg/name to drive the action. This allows more varied enemy behaviors
-  // without hardcoding in JS.
-  // Note: Szass Tam (id: 'szass_tam') is defined in `data/enemies.json` and
-  // uses this data-driven `attacks` array (Paralyzing Touch, Cone of Cold,
-  // Disintegrate). The generic `attacks` handling below will pick an attack
-  // and emit `attackName`/`attack` in the resulting events for UI messaging.
   if(state.enemy && Array.isArray(state.enemy.attacks) && state.enemy.attacks.length>0){
     const picks = state.enemy.attacks;
     const atkIndex = rng ? rng.int(picks.length) : Math.floor(Math.random()*picks.length);
@@ -243,190 +261,31 @@ export function enemyAct(state){
     const attackName = atk.name || ('Attack '+(atkIndex+1));
     const type = (atk.type || 'single').toLowerCase();
     const baseDmg = (typeof atk.dmg === 'number') ? atk.dmg : (state.enemy.attack || 1);
-    // handle AOE attacks
+    // Use centralized handlers for both AOE and single-target attacks
     if(type === 'aoe'){
-      const baseAoE = baseDmg;
-      for(let i=0;i<state.playfield.length;i++){
-        const h = state.playfield[i];
-        if(h){
-          let remaining = baseAoE;
-          if(h.defending) remaining = Math.ceil(remaining/2);
-          let tempTaken = 0;
-          if(h.tempHp && h.tempHp>0){ const take = Math.min(h.tempHp, remaining); h.tempHp -= take; tempTaken = take; remaining -= take; }
-          let hpTaken = 0;
-          if(remaining>0){ h.hp -= remaining; hpTaken = remaining; }
-          const died = h.hp <= 0;
-          const heroName = h.base && h.base.name ? h.base.name : null;
-          if(died){ state.exhaustedThisEncounter.push(h.base); state.playfield[i] = null; }
-          events.push({ type:'hit', slot:i, dmg: baseAoE, tempTaken, hpTaken, remainingHp: died?0:h.hp, died, heroName, attack: atkIndex+1, attackName });
-        }
-      }
+      events.push(...resolveAoEAttack(state, baseDmg, atkIndex, attackName));
     } else {
-      // single-target attack
-      // prefer helped hero (support 'Help') if present
-      const helpedIndex = state.playfield.findIndex(h => h && h.helped);
-      const idx = _selectSingleTargetIndex(state, rng);
-      if(idx !== -1){
-        let h = state.playfield[idx];
-        if(h){
-          // single-target: defended heroes take no damage
-          let remaining = h.defending ? 0 : baseDmg;
-          let tempTaken = 0;
-          if(h.tempHp && h.tempHp>0){ const take = Math.min(h.tempHp, remaining); h.tempHp -= take; tempTaken = take; remaining -= take; }
-          let hpTaken = 0;
-          if(remaining>0) { h.hp -= remaining; hpTaken = remaining; }
-          const died = h.hp <= 0;
-          const heroName = h.base && h.base.name ? h.base.name : null;
-          if(died){ state.exhaustedThisEncounter.push(h.base); state.playfield[idx]=null }
-          events.push({ type:'hit', slot:idx, dmg:baseDmg, tempTaken, hpTaken, remainingHp: died?0:h.hp, died, heroName, attack: atkIndex+1, attackName });
-        }
-      }
+      events.push(...resolveSingleTargetAttack(state, baseDmg, atkIndex, attackName));
     }
-    // after performing the attack(s), perform end-of-enemy-turn housekeeping
-    state.ap = state.apPerTurn;
-    Object.keys(state.summonCooldowns).forEach(k=>{ if(state.summonCooldowns[k] > 0) state.summonCooldowns[k]--; });
-    state.playfield.forEach(h=>{ if(h && h.defending) h.defending = false; });
-    state.playfield.forEach(h=>{ if(h && h.helped) h.helped = false; });
-    // drawing removed — cards remain static in `deck.hand` for duration of encounter
-    return {did:'enemyAct', events};
+    // after performing the attack(s), fall through to common end-of-turn housekeeping
+    // (events have been populated above)
   }
-  // Special behavior for Wiltherp: two single-target attacks (2 dmg) and one AOE (1 dmg)
-  if(state.enemy && (state.enemy.id === 'wiltherp' || (state.enemy.name && state.enemy.name.toLowerCase().includes('wiltherp')))){
-    const atkIndex = rng ? rng.int(3) : Math.floor(Math.random()*3);
-    // atkIndex 0 -> Poison Spray (single-target, 2 dmg)
-    // atkIndex 1 -> Shillelagh (single-target, 2 dmg)
-    // atkIndex 2 -> Thunderwave (AOE, 1 dmg)
-    if(atkIndex === 2){
-      const attackName = 'Thunderwave';
-      const baseAoE = 1;
-      for(let i=0;i<state.playfield.length;i++){
-        const h = state.playfield[i];
-        if(h){
-          let remaining = baseAoE;
-          if(h.defending) remaining = Math.ceil(remaining/2);
-          let tempTaken = 0;
-          if(h.tempHp && h.tempHp>0){ const take = Math.min(h.tempHp, remaining); h.tempHp -= take; tempTaken = take; remaining -= take; }
-          let hpTaken = 0;
-          if(remaining>0){ h.hp -= remaining; hpTaken = remaining; }
-          const died = h.hp <= 0;
-          const heroName = h.base && h.base.name ? h.base.name : null;
-          if(died){ state.exhaustedThisEncounter.push(h.base); state.playfield[i] = null; }
-          events.push({ type:'hit', slot:i, dmg: baseAoE, tempTaken, hpTaken, remainingHp: died?0:h.hp, died, heroName, attack: atkIndex+1, attackName });
-        }
-      }
-    } else {
-      const atkDmg = 2;
-      const attackName = (atkIndex === 0) ? 'Poison Spray' : 'Shillelagh';
-      // prefer helped hero
-      const helpedIndex = state.playfield.findIndex(h => h && h.helped);
-      const idx = _selectSingleTargetIndex(state, rng);
-      if(idx !== -1){
-        let h = state.playfield[idx];
-        if(h){
-          let remaining = h.defending ? 0 : atkDmg;
-          let tempTaken = 0;
-          if(h.tempHp && h.tempHp>0){ const take = Math.min(h.tempHp, remaining); h.tempHp -= take; tempTaken = take; remaining -= take; }
-          let hpTaken = 0;
-          if(remaining>0) { h.hp -= remaining; hpTaken = remaining; }
-          const died = h.hp <= 0;
-          const heroName = h.base && h.base.name ? h.base.name : null;
-          if(died){ state.exhaustedThisEncounter.push(h.base); state.playfield[idx]=null }
-          events.push({ type:'hit', slot:idx, dmg:atkDmg, tempTaken, hpTaken, remainingHp: died?0:h.hp, died, heroName, attack: atkIndex+1, attackName });
-        }
-      }
-    }
-    // after performing Wiltherp attack(s), perform end-of-enemy-turn housekeeping
-    state.ap = state.apPerTurn;
-    Object.keys(state.summonCooldowns).forEach(k=>{ if(state.summonCooldowns[k] > 0) state.summonCooldowns[k]--; });
-    state.playfield.forEach(h=>{ if(h && h.defending) h.defending = false; });
-    state.playfield.forEach(h=>{ if(h && h.helped) h.helped = false; });
-    // drawing removed — cards remain static in `deck.hand` for duration of encounter
-    return {did:'enemyAct', events};
-  }
-  if(isAOE){
-    // hit all heroes
-    for(let i=0;i<state.playfield.length;i++){
-      const h = state.playfield[i];
-      if(h){
-        // base AOE damage is half of enemy dmg; defending heroes take half of that
-        let remaining = Math.ceil(dmg/2);
-        if(h.defending) remaining = Math.ceil(remaining/2);
-        let tempTaken = 0;
-        if(h.tempHp && h.tempHp>0){
-          const takeFromTemp = Math.min(h.tempHp, remaining);
-          h.tempHp -= takeFromTemp;
-          tempTaken = takeFromTemp;
-          remaining -= takeFromTemp;
-        }
-        let hpTaken = 0;
-        if(remaining>0){ h.hp -= remaining; hpTaken = remaining; }
-        const died = h.hp <= 0;
-        // preserve hero name for messaging
-        const heroName = h.base && h.base.name ? h.base.name : null;
-        if(died){
-          state.exhaustedThisEncounter.push(h.base);
-          state.playfield[i] = null;
-        }
-        events.push({ type:'hit', slot:i, dmg:dmg, tempTaken, hpTaken, remainingHp: died?0:h.hp, died, heroName });
-      }
-    }
-  } else {
-    // single target: first check for any hero that was marked by a support 'Help' action
-    const helpedIndex = state.playfield.findIndex(h => h && h.helped);
-    if(helpedIndex !== -1){
-      // target the helped hero
-      const idx = helpedIndex;
-      let h = state.playfield[idx];
-      if(h){
-        // single-target: defended heroes take no damage
-        let remaining = h.defending ? 0 : dmg;
-        let tempTaken = 0;
-        if(h.tempHp && h.tempHp>0){ const take = Math.min(h.tempHp, remaining); h.tempHp -= take; tempTaken = take; remaining -= take; }
-        let hpTaken = 0;
-        if(remaining>0) { h.hp -= remaining; hpTaken = remaining; }
-        const died = h.hp <= 0;
-        const heroName = h.base && h.base.name ? h.base.name : null;
-        if(died){ state.exhaustedThisEncounter.push(h.base); state.playfield[idx]=null }
-        events.push({ type:'hit', slot:idx, dmg:dmg, tempTaken, hpTaken, remainingHp: died?0:h.hp, died, heroName });
-      }
-    } else {
-      const idx = _selectSingleTargetIndex(state, rng);
-      if(idx !== -1){
-        let h = state.playfield[idx];
-        if(h){
-          // single-target: defended heroes take no damage
-          let remaining = h.defending ? 0 : dmg;
-          let tempTaken = 0;
-          if(h.tempHp && h.tempHp>0){ const take = Math.min(h.tempHp, remaining); h.tempHp -= take; tempTaken = take; remaining -= take; }
-          let hpTaken = 0;
-          if(remaining>0) { h.hp -= remaining; hpTaken = remaining; }
-          const died = h.hp <= 0;
-          const heroName = h.base && h.base.name ? h.base.name : null;
-          if(died){ state.exhaustedThisEncounter.push(h.base); state.playfield[idx]=null }
-          events.push({ type:'hit', slot:idx, dmg:dmg, tempTaken, hpTaken, remainingHp: died?0:h.hp, died, heroName });
-        }
-      }
-  }
-  // after enemy turn, reset AP for player next round
+  // No data-driven `attacks` defined: do not perform legacy fallback attacks.
+  // Advance turn housekeeping and return empty events — enemy cannot act.
   state.ap = state.apPerTurn;
-  // decrement summon cooldowns
-  Object.keys(state.summonCooldowns).forEach(k=>{
-    if(state.summonCooldowns[k] > 0) state.summonCooldowns[k]--;
-  });
-  // clear defending flags -- defending only lasts for the enemy's action
+  Object.keys(state.summonCooldowns).forEach(k=>{ if(state.summonCooldowns[k] > 0) state.summonCooldowns[k]--; });
   state.playfield.forEach(h=>{ if(h && h.defending) h.defending = false; });
-  // clear helped flags (support 'Help' applies to the next enemy single-target attack only)
   state.playfield.forEach(h=>{ if(h && h.helped) h.helped = false; });
   // drawing removed — cards remain static in `deck.hand` for duration of encounter
   return {did:'enemyAct', events};
 }
-}
+
 
 export function useSummon(state, summonDef, targetIndex=null){
   if(!summonDef || !summonDef.id) return { success:false, reason:'invalid' };
   const id = summonDef.id;
-  // check once-per-encounter restriction
-  if(summonDef.restriction && summonDef.restriction.toLowerCase().includes('once')){
+  // check once-per-encounter restriction (only blocks within this encounter)
+  if(summonDef.restriction && summonDef.restriction.toLowerCase().includes('once per encounter')){
     if(state.summonUsed[id]) return { success:false, reason:'used' };
   }
   // check cooldown
@@ -436,10 +295,12 @@ export function useSummon(state, summonDef, targetIndex=null){
   if(id === 'garon'){
     // heal entire party 1 HP
     state.playfield.forEach(h=>{ if(h) h.hp = Math.min(h.base.hp, h.hp + 1); });
-  } else if(id === 'volo'){
+  } 
+  else if(id === 'volo'){
     // double next attack
     state.nextAttackMultiplier = 2;
-  } else if(id === 'blackrazor'){
+  } 
+  else if(id === 'blackrazor'){
     // give 30 temp HP to a target (if provided) or lowest-HP hero
     const heroes = state.playfield;
     if(!heroes.some(h=>h)) return { success:false, reason:'no_target' };
@@ -448,29 +309,33 @@ export function useSummon(state, summonDef, targetIndex=null){
     else target = heroes.filter(h=>h).reduce((a,b)=> (a.hp < b.hp ? a : b));
     if(!target) return { success:false, reason:'no_target' };
     target.tempHp = (target.tempHp||0) + 30;
-  } else if(id === 'whelm'){
-    // stun enemy for 1 turn
-    state.enemy.stunnedTurns = Math.max(1, state.enemy.stunnedTurns||0) + 1;
-  } else if(id === 'wave'){
+  } 
+  else if(id === 'whelm'){
+    // stun enemy for 2 turns (ensure at least 2)
+    state.enemy.stunnedTurns = Math.max(2, state.enemy.stunnedTurns||0);
+  } 
+  else if(id === 'wave'){
     // reduce enemy HP by 50% of max
     const max = state.enemy.maxHp || state.enemy.hp;
     const reduce = Math.floor((max * 0.5));
     state.enemy.hp = Math.max(0, state.enemy.hp - reduce);
-  } else {
+  } 
+  else {
     // fallback: try to parse numeric heal
     const m = (summonDef.ability||'').match(/(\d+)/);
     const v = m ? Number(m[1]) : null;
     if(v){ state.playfield.forEach(h=>{ if(h) h.hp = Math.min(h.base.hp, h.hp + v); }); }
   }
-  // mark used or set cooldown; use large number for once-per-encounter/run
+  // mark used or set cooldown
   if(summonDef.restriction && summonDef.restriction.toLowerCase().includes('once per encounter')){
+    state.summonUsed[id] = true;
+    state.summonCooldowns[id] = 9999;
+  } else if(summonDef.restriction && summonDef.restriction.toLowerCase().includes('once per run')){
+    // mark used for this encounter (persistent run-level tracking handled by caller)
     state.summonUsed[id] = true;
     state.summonCooldowns[id] = 9999;
   } else if(summonDef.cooldown){
     state.summonCooldowns[id] = summonDef.cooldown;
-  } else if(summonDef.restriction && summonDef.restriction.toLowerCase().includes('once per run')){
-    state.summonUsed[id] = true;
-    state.summonCooldowns[id] = 9999;
   }
   return { success:true };
 }

@@ -11,7 +11,7 @@ function slotNode(slotObj, idx, handlers={}, highlight=false, targetHighlight=fa
     container.classList.add('empty-slot');
     const empty = el('div',{class:'muted empty-label'},['Space '+(idx+1)]);
     container.appendChild(empty);
-    container.addEventListener('click',()=>{ if(handlers.onClick) handlers.onClick(idx); });
+    container.addEventListener('click',()=>{ if(handlers.onSelect) handlers.onSelect(idx); else if(handlers.onClick) handlers.onClick(idx); });
     return container;
   }
   // hero image tile (show current HP in the card stats)
@@ -41,7 +41,7 @@ function slotNode(slotObj, idx, handlers={}, highlight=false, targetHighlight=fa
   defend.addEventListener('click',(e)=>{ e.stopPropagation(); if(handlers.onDefend) handlers.onDefend(idx); });
   btns.appendChild(defend);
   container.appendChild(btns);
-  container.addEventListener('click',()=>{ if(handlers.onClick) handlers.onClick(idx); });
+  container.addEventListener('click',()=>{ if(handlers.onSelect) handlers.onSelect(idx); else if(handlers.onClick) handlers.onClick(idx); });
   return container;
 }
 
@@ -116,7 +116,7 @@ export function renderBattle(root, ctx){
   historyToggle.addEventListener('click',()=>{
     ctx.historyCollapsed = !Boolean(ctx.historyCollapsed);
     // persist collapse state and re-render so the panel remains hidden until explicitly shown
-    if(typeof ctx.onStateChange === 'function') ctx.onStateChange();
+      if(typeof ctx.onStateChange === 'function') ctx.onStateChange();
   });
   root.appendChild(historyToggle);
 
@@ -234,11 +234,11 @@ export function renderBattle(root, ctx){
       btn.addEventListener('click',()=>{
         const needsTarget = /one target|target/i.test(s.ability||'') || s.id === 'blackrazor';
         if(needsTarget){
-            ctx.pendingSummon = { id: s.id, name: s.name };
-            if(ctx.setMessage) ctx.setMessage('Click a space to target '+s.name);
-            ctx.onStateChange();
-            return;
-          }
+          ctx.pendingSummon = { id: s.id, name: s.name };
+          if(ctx.setMessage) ctx.setMessage('Click a space to target '+s.name);
+          ctx.onStateChange();
+          return;
+        }
         const res = ctx.useSummon(s.id);
         if(!res.success) { if(ctx.setMessage) ctx.setMessage(res.reason||'failed'); }
         else { if(ctx.setMessage) ctx.setMessage('Summon cast: '+s.name); ctx.onStateChange(); }
@@ -277,6 +277,18 @@ export function renderBattle(root, ctx){
 
   function makeSlot(i){
     const isTarget = Boolean(ctx.pendingAction && ctx.pendingAction.type === 'heal' && ctx.encounter.playfield[i]);
+    // Highlight logic:
+    // - when in place mode: highlight only empty slots
+    // - when in replace mode: highlight only occupied slots
+    // - otherwise highlight when any pending action exists
+    let highlight = Boolean(pendingAny);
+    if(pendingReplace){
+      if(pendingReplace.mode === 'place'){
+        highlight = !Boolean(ctx.encounter.playfield[i]);
+      } else if(pendingReplace.mode === 'replace'){
+        highlight = Boolean(ctx.encounter.playfield[i]);
+      }
+    }
     return slotNode(ctx.encounter.playfield[i], i, {
       ap: ctx.encounter.ap,
       onAction(idx){
@@ -330,7 +342,6 @@ export function renderBattle(root, ctx){
           const from = ctx.pendingAction.from;
           const res = ctx.playHeroAction(from, idx);
           if(!res.success) { if(ctx.setMessage) ctx.setMessage(res.reason||'failed'); }
-          else { if(ctx.setMessage) ctx.setMessage('Healed space '+(res.slot+1)+' for '+res.healed+' HP'); }
           ctx.pendingAction = null;
           ctx.onStateChange();
           return;
@@ -355,6 +366,8 @@ export function renderBattle(root, ctx){
           return;
         }
         // replace mode (default behavior)
+        // clicking an empty slot when replacing is invalid
+        if(pendingReplace.mode === 'replace' && !ctx.encounter.playfield[idx]){ if(ctx.setMessage) ctx.setMessage('Slot is empty. Choose an occupied slot to replace.'); return; }
         if(ctx.encounter.ap < 1) { if(ctx.setMessage) ctx.setMessage('Not enough AP to replace'); ctx.pendingReplace = null; ctx.onStateChange(); return; }
         // remove the card from hand now that the player confirmed the slot
         const card = ctx.encounter.deck.playFromHand(handIndex);
@@ -384,7 +397,6 @@ export function renderBattle(root, ctx){
           const from = ctx.pendingAction.from;
           const res = ctx.playHeroAction(from, idx);
           if(!res.success) { if(ctx.setMessage) ctx.setMessage(res.reason||'failed'); }
-          else { if(ctx.setMessage) ctx.setMessage('Healed space '+(res.slot+1)+' for '+res.healed+' HP'); }
           ctx.pendingAction = null;
           ctx.onStateChange();
           return;
@@ -396,6 +408,8 @@ export function renderBattle(root, ctx){
         // remove the card from hand now that the player confirmed the slot
         const card = ctx.encounter.deck.playFromHand(handIndex);
         if(!card){ if(ctx.setMessage) ctx.setMessage('Card not available'); ctx.pendingReplace = null; ctx.onStateChange(); return; }
+        // if in replace mode, disallow targeting an empty slot
+        if(pendingReplace.mode === 'replace' && !ctx.encounter.playfield[idx]){ if(ctx.setMessage) ctx.setMessage('Slot is empty. Choose an occupied slot to replace.'); ctx.pendingReplace = null; try{ ctx.encounter.deck.hand.push(card); }catch(e){} ctx.onStateChange(); return; }
         // perform replacement (this will return the previous occupant to hand inside replaceHero)
         const res = ctx.replaceHero(idx, card);
         if(!res.success){
@@ -406,7 +420,7 @@ export function renderBattle(root, ctx){
         ctx.pendingReplace = null;
         ctx.onStateChange();
       }
-    }, Boolean(pendingAny), isTarget);
+    }, highlight, isTarget);
   }
 
   // place slot 3 (index 2) on the left, and slots 1 & 2 (indices 0 & 1) stacked to the right

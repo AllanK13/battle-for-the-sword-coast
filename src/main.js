@@ -1,6 +1,6 @@
 import { createRNG } from './engine/rng.js';
 import { buildDeck } from './engine/deck.js';
-import { startEncounter, playHeroAttack, playHeroAction, enemyAct, isFinished, placeHero, placeHeroAt, replaceHero, useSummon, defendHero } from './engine/encounter.js';
+import { startEncounter, playHeroAttack, playHeroAction, enemyAct, isFinished, placeHero, replaceHero, useSummon, defendHero } from './engine/encounter.js';
 import { createMeta, buyUpgrade, buyLegendaryItem, loadMeta, saveMeta } from './engine/meta.js';
 import { AudioManager } from './engine/audio.js';
 import { register, navigate } from './ui/router.js';
@@ -8,7 +8,6 @@ import { renderStart } from './ui/screens/start.js';
 import { renderStats } from './ui/screens/stats.js';
 import { renderUpgrades } from './ui/screens/upgrades.js';
 import { renderBattle } from './ui/screens/battle.js';
-import { renderStore } from './ui/screens/store.js';
 import { renderEnd } from './ui/screens/end.js';
 import { renderEncounterEnd } from './ui/screens/encounter_end.js';
 
@@ -70,263 +69,15 @@ async function loadData(){
   data.cards = cards; data.summons = summons; data.enemies = enemies; data.upgrades = upgrades;
 }
 
-function appStart(){
-  // On first-ever run, grant starter ownership if none present
-  try{
-    if((meta.runs||0) === 0){
-      if(!(Array.isArray(meta.ownedCards) && meta.ownedCards.length > 0)){
-        meta.ownedCards = (data.cards||[]).filter(c=>c && c.starter).map(c=>c.id);
-      }
-      if(!(Array.isArray(meta.ownedSummons) && meta.ownedSummons.length > 0)){
-        meta.ownedSummons = (data.summons||[]).filter(s=>s && s.starter).map(s=>s.id);
-      }
-      saveMeta(meta);
-    }
-  }catch(e){}
-  register('start', (root)=> {
-    // Switch to menu music when entering the start screen
-    try{
-      const musicCandidates = ['./assets/music/menu.mp3','assets/music/menu.mp3','/assets/music/menu.mp3'];
-      AudioManager.init(musicCandidates[0], { autoplay:true, loop:true });
-    }catch(e){ /* ignore */ }
-    return renderStart(root, {
-      data,
-      meta,
-      selectCard(id){ console.log('selected',id); },
-      onStartRun(opts){ startRun(opts); },
-      onShowStats(){ navigate('stats'); },
-      onShowUpgrades(){ navigate('upgrades'); },
-      onDebugGrant(){
-        try{ meta.ip = (meta.ip||0) + 10000; saveMeta(meta); }catch(e){ console.warn('debug grant failed', e); }
-        navigate('start');
-      },
-      onDebugUnlock(){
-        try{
-          // grant all cards and summons
-          meta.ownedCards = (data.cards||[]).filter(c=>c && c.id).map(c=>c.id);
-          meta.ownedSummons = (data.summons||[]).filter(s=>s && s.id).map(s=>s.id);
-          meta.legendaryUnlocked = true;
-          // top up IP too
-          meta.ip = (meta.ip||0) + 10000;
-          saveMeta(meta);
-        }catch(e){ console.warn('debug unlock failed', e); }
-        navigate('start');
-      }
-      ,
-      onDebugUnlockTown(){
-        try{
-          meta.totalIpEarned = Math.max(1, (meta.totalIpEarned||0));
-          saveMeta(meta);
-        }catch(e){ console.warn('debug unlock town failed', e); }
-        navigate('start');
-      }
-      ,
-      onDebugStartEnemy(indexOrId){
-        try{
-          // resolve index if provided an id/name
-          let idx = -1;
-          if(typeof indexOrId === 'number') idx = Number(indexOrId);
-          else if(typeof indexOrId === 'string') idx = (data.enemies||[]).findIndex(e=> e && (e.id===indexOrId || e.name===indexOrId));
-          if(idx < 0 || !(data.enemies && data.enemies[idx])) { console.warn('Invalid enemy for debug start', indexOrId); return; }
-          // build a default chosen deck (owned or starters)
-          let chosen = (meta && Array.isArray(meta.ownedCards) && meta.ownedCards.length>0) ? meta.ownedCards.slice() : (data.cards||[]).filter(c=>c && c.starter).map(c=>c.id);
-          // build deck and start a single-encounter state
-          const deck = buildDeck(data.cards, chosen, RNG);
-          const enemy = data.enemies[idx];
-          const encounter = startEncounter({...enemy}, deck, RNG, { apPerTurn: meta.apPerTurn || 3 });
-          const runSummary = { defeated: [], diedTo: null, ipEarned: 0 };
-          const ctx = {
-            data, meta,
-            encounter,
-            message: '',
-            messageHistory: [],
-            setMessage(msg, timeout=3000){ const entry = { text: msg, ts: Date.now() }; ctx.message = msg; ctx.messageHistory = ctx.messageHistory || []; ctx.messageHistory.unshift(entry); if(ctx.messageHistory.length>50) ctx.messageHistory.length = 50; ctx.onStateChange(); if(timeout) setTimeout(()=>{ if(ctx.message===msg){ ctx.message=''; ctx.onStateChange(); } }, timeout); },
-            dismissMessage(){ ctx.message=''; ctx.onStateChange(); },
-            clearMessageHistory(){ ctx.messageHistory = []; ctx.onStateChange(); },
-            placeHero(card){ const res = placeHero(encounter, card); if(res.success){ if(ctx.setMessage) ctx.setMessage('Placed '+(card.name||card.id)+' in space '+(res.slot+1)); } else { if(ctx.setMessage) ctx.setMessage('No unoccupied space'); } return res; },
-            playHeroAttack(slot){ const res = playHeroAttack(encounter, slot); if(!res.success){ if(ctx.setMessage) ctx.setMessage(res.reason||'Attack failed'); } else { if(ctx.setMessage) ctx.setMessage('Hero dealt '+res.dmg+' damage. Enemy HP: '+res.enemyHp); } return res; },
-            playHeroAction(slot, targetIndex){ const res = playHeroAction(encounter, slot, targetIndex); if(!res.success){ if(ctx.setMessage) ctx.setMessage(res.reason||'Action failed'); } else { if(res.type === 'attack'){ if(ctx.setMessage) ctx.setMessage('Hero dealt '+res.dmg+' damage. Enemy HP: '+res.enemyHp); } else if(res.type === 'heal'){ if(ctx.setMessage) ctx.setMessage('Hero healed '+res.healed+' HP (now '+res.hp+')'); } else if(res.type === 'support' && res.refreshed === 'volo') { if(ctx.setMessage) ctx.setMessage("Support active: Volo ability available again"); } else if(res.type === 'support') { if(ctx.setMessage) ctx.setMessage('Support active: will be targeted by next single-target enemy attack'); } } return res; },
-            defendHero(slot){ const res = defendHero(encounter, slot); if(!res.success){ if(ctx.setMessage) ctx.setMessage(res.reason||'Defend failed'); } else { if(ctx.setMessage) ctx.setMessage('Hero is defending'); } return res; },
-            replaceHero(slot, card){ const res = replaceHero(encounter, slot, card); if(!res.success) { if(ctx.setMessage) ctx.setMessage(res.reason||'Replace failed'); } else { if(ctx.setMessage) ctx.setMessage('Replaced space '+(slot+1)+' with '+(card.name||card.id)); } return res; },
-            useSummon(id, targetIndex=null){ const s = data.summons.find(x=>x.id===id); const r = useSummon(encounter,s,targetIndex); if(!r.success){ if(ctx.setMessage) ctx.setMessage(r.reason||'Summon failed'); } else { if(ctx.setMessage) ctx.setMessage('Summon: '+(s.name||s.id)+' used'); } try{ if(r.success && s && s.id){ meta.summonUsage = meta.summonUsage || {}; meta.summonUsage[s.id] = (meta.summonUsage[s.id] || 0) + 1; saveMeta(meta); } }catch(e){} return r; },
-            runSummary,
-            currentEnemyIndex: idx,
-            endTurn(){ const res = enemyAct(encounter); let messages = []; if(res && res.events && res.events.length){ messages = res.events.map(ev => { if(ev.type === 'stunned') return ev.msg; if(ev.type === 'hit'){ const name = ev.heroName || (encounter.playfield[ev.slot] && encounter.playfield[ev.slot].base && encounter.playfield[ev.slot].base.name) || ('space ' + (ev.slot+1)); const totalDmg = (ev.tempTaken||0)+(ev.hpTaken||0); const attackPrefix = ev.attackName ? ('Enemy used ' + ev.attackName + ' and ') : ''; if(ev.died) return attackPrefix + 'hit ' + name + ' for ' + totalDmg + ' and killed it'; if(totalDmg === 0) return attackPrefix + 'attacked ' + name + ' but dealt no damage'; return attackPrefix + 'hit ' + name + ' for ' + totalDmg + ', remaining HP: ' + ev.remainingHp; } return null; }).filter(Boolean); }
-              if(!messages.length){ if(res && res.did === 'enemyStunned'){ messages = ['Enemy stunned and skipped its turn']; } else if(res && res.did === 'enemyAct'){ messages = ['Enemy could not attack (no targets)']; } else { messages = ['Enemy turn passed']; } }
-              if(messages.length) ctx.setMessage(messages.join('\n'),1000);
-              const finished = isFinished(encounter).winner;
-              if(finished === 'player'){
-                const reward = encounter.enemy.ip_reward || 1;
-                const prevOnState = ctx.onStateChange;
-                const prevSetMessage = ctx.setMessage;
-                ctx.onStateChange = ()=>{};
-                ctx.setMessage = ()=>{};
-                  const encounterEndCtx = {
-                    data,
-                    enemy: encounter.enemy,
-                    reward,
-                    runSummary,
-                    onContinue: ()=>{
-                      // restore handlers
-                      ctx.onStateChange = prevOnState;
-                      ctx.setMessage = prevSetMessage;
-                      // record defeated enemy and award IP
-                      const enemyKey = encounter.enemy.id || encounter.enemy.name || 'unknown';
-                      runSummary.defeated.push(enemyKey);
-                      runSummary.ipEarned = (runSummary.ipEarned||0) + reward;
-                      meta.ip += reward;
-                      meta.totalIpEarned = (meta.totalIpEarned||0) + reward;
-                      // update persistent stats
-                      try{
-                        meta.encountersBeaten = (meta.encountersBeaten || 0) + 1;
-                        meta.furthestReachedEnemy = Math.max((meta.furthestReachedEnemy||0), idx);
-                        meta.enemyDefeatCounts = meta.enemyDefeatCounts || {};
-                        meta.enemyDefeatCounts[enemyKey] = (meta.enemyDefeatCounts[enemyKey] || 0) + 1;
-                        saveMeta(meta);
-                      }catch(e){ /* ignore */ }
-                      // advance to next enemy if available
-                      const nextIndex = idx + 1;
-                      if(nextIndex < (data.enemies||[]).length){
-                        // continue to next enemy (simulate progression)
-                      }
-                      navigate('start');
-                    }
-                  };
-                  navigate('encounter_end', encounterEndCtx);
-                  return;
-              }
-              else if(finished === 'enemy'){
-                const enemyKey = encounter.enemy.id || encounter.enemy.name || 'unknown';
-                runSummary.diedTo = enemyKey;
-                let vInterest = 0;
-                try{
-                  meta.runs = (meta.runs||0) + 1;
-                  meta.furthestReachedEnemy = Math.max((meta.furthestReachedEnemy||0), idx);
-                  meta.enemyVictoryCounts = meta.enemyVictoryCounts || {};
-                  meta.enemyVictoryCounts[enemyKey] = (meta.enemyVictoryCounts[enemyKey] || 0) + 1;
-                  // If player purchased invest_v, award 25% of run IP (rounded down)
-                  if(meta && Array.isArray(meta.purchasedUpgrades) && meta.purchasedUpgrades.includes('invest_v')){
-                    vInterest = Math.floor((runSummary.ipEarned||0) * 0.25);
-                    meta.ip += vInterest;
-                    meta.totalIpEarned = (meta.totalIpEarned||0) + vInterest;
-                  }
-                  saveMeta(meta);
-                }catch(e){}
-                const endCtx = { data, runSummary, vInterest, onRestart: ()=> navigate('start') };
-                ctx.onStateChange = ()=>{};
-                ctx.setMessage = ()=>{};
-                navigate('end', endCtx);
-                return;
-              }
-              navigate('battle', ctx);
-            },
-            onStateChange(){ navigate('battle', ctx); }
-          };
-          navigate('battle', ctx);
-        }catch(e){ console.warn('onDebugStartEnemy failed', e); }
-      }
-    });
-  });
 
-
-  register('stats', (root)=> renderStats(root, { data, meta, onBack: ()=> navigate('start') }));
-
-  register('upgrades', (root)=> {
-    // Switch to town music when entering upgrades screen (if available)
-    try{
-      const musicCandidates = ['./assets/music/town.mp3','assets/music/town.mp3','/assets/music/town.mp3'];
-      AudioManager.init(musicCandidates[0], { autoplay:true, loop:true });
-    }catch(e){ /* ignore */ }
-    return renderUpgrades(root, {
-      data,
-      meta,
-      buyUpgrade(id){
-        const u = (data.upgrades||[]).find(x=>x.id===id || x.upgrade===id);
-        if(!u) return;
-        const res = buyUpgrade(meta, u);
-        try{ saveMeta(meta); }catch(e){}
-        // simple feedback via alert if available
-        if(typeof window !== 'undefined' && window.alert){
-          if(res && res.success) window.alert('Purchased '+(u.upgrade||u.id));
-          else if(res && res.reason === 'prereq') window.alert('Cannot purchase: requires Increase AP to 4 first');
-          else window.alert('Cannot purchase: insufficient IP');
-        }
-        // re-render the upgrades screen
-        navigate('upgrades');
-      },
-      buyLegendary(itemId){
-        // look up the item in cards, summons, or legendary lists
-        const findIn = (arr)=> (arr||[]).find(x=>x.id===itemId || x.name===itemId || x.upgrade===itemId);
-        const item = findIn(data.cards) || findIn(data.summons) || findIn(data.legendary) || findIn(data.upgrades);
-        if(!item) return;
-        const res = buyLegendaryItem(meta, item);
-        try{ saveMeta(meta); }catch(e){}
-        if(typeof window !== 'undefined' && window.alert){
-          if(res && res.success) window.alert('Purchased '+(item.name||item.upgrade||item.id));
-          else window.alert('Cannot purchase: insufficient IP');
-        }
-        navigate('upgrades');
-      },
-      onBack: ()=> navigate('start')
-    });
-  });
-
-  register('battle', (root, params)=> renderBattle(root, params));
-  register('encounter_end', (root, params)=> renderEncounterEnd(root, params));
-  // Consolidate shop UI: redirect legacy `store` route to the canonical `upgrades` screen
-  register('store', (root, params)=> navigate('upgrades'));
-  register('end', (root, params)=> renderEnd(root, params));
-
-  navigate('start');
-
-  // Initialize background music to menu track. Place your music file at `assets/music/menu.mp3`.
-  try{
-    const musicCandidates = ['./assets/music/menu.mp3','assets/music/menu.mp3','/assets/music/menu.mp3'];
-    // Start with the first candidate; browsers will gracefully fail if missing.
-    AudioManager.init(musicCandidates[0], { autoplay:true, loop:true });
-    // Convenience helpers exposed for debugging or UI wiring
-    window.toggleMusic = function(){ return AudioManager.toggle(); };
-    window.setMusicVolume = function(v){ return AudioManager.setVolume(v); };
-    window.isMusicEnabled = function(){ return AudioManager.isEnabled(); };
-  }catch(e){ console.warn('Background music init failed', e); }
-
-  // Ensure playback starts after a user gesture when the browser blocks autoplay.
-  (function ensureGestureStart(){
-    try{
-      const events = ['pointerdown','keydown','touchstart','click'];
-      const handler = function(){
-        try{ AudioManager.play(); }catch(e){}
-        events.forEach(ev => window.removeEventListener(ev, handler));
-      };
-      events.forEach(ev => window.addEventListener(ev, handler, { passive: true }));
-    }catch(e){ /* ignore */ }
-  })();
-
-  // Floating stats button removed — stats button is shown only on the start (menu) screen
-}
-
-let RNG = createRNG();
-
-async function startRun({seed, deckIds} = {}){
-  if(seed) RNG = createRNG(seed);
-  let chosen = (deckIds && deckIds.length>0) ? deckIds : ((meta && Array.isArray(meta.ownedCards) && meta.ownedCards.length>0) ? meta.ownedCards.slice() : data.cards.filter(c=>c.starter).map(c=>c.id));
-  // Ensure the player has starter summons available for the run if none are owned
-  try{
-    if(!(meta && Array.isArray(meta.ownedSummons) && meta.ownedSummons.length > 0)){
-      meta.ownedSummons = (data.summons||[]).filter(s=>s && s.starter).map(s=>s.id);
-      saveMeta(meta);
-    }
-  }catch(e){ /* ignore */ }
-  // Track characters taken on a run (increment per-run usage)
-  try{
-    meta.characterUsage = meta.characterUsage || {};
-    chosen.forEach(id=>{ meta.characterUsage[id] = (meta.characterUsage[id] || 0) + 1; });
-    saveMeta(meta);
-  }catch(e){ /* ignore */ }
-  let deck = buildDeck(data.cards, chosen, RNG);
-  let currentEnemyIndex = 0;
+// Helper: create a deck, start an encounter and build the UI context object.
+function createEncounterSession(enemyIndex, chosenIds, rng){
+  // keep a local mutable copy of the chosen ids so we can rebuild the deck
+  let chosen = Array.isArray(chosenIds) ? chosenIds.slice() : [];
+  let deck = buildDeck(data.cards, chosen, rng);
+  let currentEnemyIndex = enemyIndex || 0;
   let enemy = data.enemies[currentEnemyIndex];
-  let encounter = startEncounter({...enemy}, deck, RNG, { apPerTurn: meta.apPerTurn || 3 });
+  let encounter = startEncounter({...enemy}, deck, rng, { apPerTurn: meta.apPerTurn || 3 });
 
   const runSummary = { defeated: [], diedTo: null, ipEarned: 0 };
 
@@ -342,19 +93,16 @@ async function startRun({seed, deckIds} = {}){
       ctx.messageHistory.unshift(entry);
       // keep history short
       if(ctx.messageHistory.length>50) ctx.messageHistory.length = 50;
-      ctx.onStateChange();
-      if(timeout) setTimeout(()=>{ if(ctx.message===msg){ ctx.message=''; ctx.onStateChange(); } }, timeout);
+      if(typeof ctx.onStateChange === 'function') ctx.onStateChange();
+      if(timeout) setTimeout(()=>{ if(ctx.message===msg){ ctx.message=''; if(typeof ctx.onStateChange === 'function') ctx.onStateChange(); } }, timeout);
     },
-    dismissMessage(){ ctx.message=''; ctx.onStateChange(); },
-    clearMessageHistory(){ ctx.messageHistory = []; ctx.onStateChange(); },
-    placeHero(card){
-      const res = placeHero(encounter, card);
-      if(res.success){ if(ctx.setMessage) ctx.setMessage('Placed '+(card.name||card.id)+' in space '+(res.slot+1)); }
-      else { if(ctx.setMessage) ctx.setMessage('No unoccupied space'); }
-      return res;
-    },
+    dismissMessage(){ ctx.message=''; if(typeof ctx.onStateChange === 'function') ctx.onStateChange(); },
+    clearMessageHistory(){ ctx.messageHistory = []; if(typeof ctx.onStateChange === 'function') ctx.onStateChange(); },
+    // Notify UI to re-render the battle screen when state changes.
+    onStateChange(){ navigate('battle', ctx); },
+    placeHero(card){return handlePlaceHero(encounter, ctx, card); },
     placeHeroAt(slot, card){
-      const res = placeHeroAt(encounter, slot, card);
+      const res = placeHero(encounter, slot, card);
       if(res.success){ if(ctx.setMessage) ctx.setMessage('Placed '+(card.name||card.id)+' in space '+(res.slot+1)); }
       else { if(ctx.setMessage) ctx.setMessage(res.reason||'Place failed'); }
       return res;
@@ -362,27 +110,32 @@ async function startRun({seed, deckIds} = {}){
     playHeroAttack(slot){
       const res = playHeroAttack(encounter, slot);
       if(!res.success){ if(ctx.setMessage) ctx.setMessage(res.reason||'Attack failed'); }
-      else { if(ctx.setMessage) ctx.setMessage('Hero dealt '+res.dmg+' damage. Enemy HP: '+res.enemyHp); }
+      else {
+        // derive friendly hero and enemy names for messages
+        const heroName = (encounter.playfield && encounter.playfield[slot] && encounter.playfield[slot].base && encounter.playfield[slot].base.name) ? encounter.playfield[slot].base.name : ('Hero ' + (slot+1));
+        const enemyName = (encounter.enemy && (encounter.enemy.name || encounter.enemy.id)) ? (encounter.enemy.name || encounter.enemy.id) : 'Enemy';
+        if(ctx.setMessage) ctx.setMessage(heroName+' dealt '+res.dmg+' damage. '+enemyName+' HP: '+res.enemyHp);
+        try{
+          if(res.dmg && res.dmg > 0){
+            const sfxCandidates = ['./assets/sfx/player_attack.mp3','assets/sfx/player_attack.mp3','/assets/sfx/player_attack.mp3','./assets/music/player_attack.mp3','assets/music/player_attack.mp3','/assets/music/player_attack.mp3'];
+            AudioManager.playSfx(sfxCandidates, { volume: 1.0 });
+          }
+        }catch(e){}
+      }
       return res;
     },
     playHeroAction(slot, targetIndex){
-      const res = playHeroAction(encounter, slot, targetIndex);
-      if(!res.success){ if(ctx.setMessage) ctx.setMessage(res.reason||'Action failed'); }
-      else {
-        if(res.type === 'attack'){ if(ctx.setMessage) ctx.setMessage('Hero dealt '+res.dmg+' damage. Enemy HP: '+res.enemyHp); }
-        else if(res.type === 'heal'){ if(ctx.setMessage) ctx.setMessage('Hero healed '+res.healed+' HP (now '+res.hp+')'); }
-        else if(res.type === 'support' && res.refreshed === 'volo') {
-          if(ctx.setMessage) ctx.setMessage("Support active: Volo ability available again");
-        } else if(res.type === 'support') {
-          if(ctx.setMessage) ctx.setMessage('Support active: will be targeted by next single-target enemy attack');
-        }
-      }
+      const res = handlePlayHeroAction(encounter, ctx, slot, targetIndex);
+      if(!res || !res.success){ if(ctx.setMessage) ctx.setMessage((res && res.reason) ? res.reason : 'Action failed'); }
       return res;
     },
     defendHero(slot){
       const res = defendHero(encounter, slot);
       if(!res.success){ if(ctx.setMessage) ctx.setMessage(res.reason||'Defend failed'); }
-      else { if(ctx.setMessage) ctx.setMessage('Hero is defending'); }
+      else {
+        const heroName = (encounter.playfield && encounter.playfield[slot] && encounter.playfield[slot].base && encounter.playfield[slot].base.name) ? encounter.playfield[slot].base.name : ('Hero ' + (slot+1));
+        if(ctx.setMessage) ctx.setMessage(heroName+' is dodging');
+      }
       return res;
     },
     replaceHero(slot, card){
@@ -393,6 +146,17 @@ async function startRun({seed, deckIds} = {}){
     },
     useSummon(id, targetIndex=null){
       const s = data.summons.find(x=>x.id===id);
+      // Enforce once-per-run restriction using persisted meta.summonUsage
+      try{
+        if(s && s.restriction && s.restriction.toLowerCase().includes('once per run')){
+          meta.summonUsage = meta.summonUsage || {};
+          if(meta.summonUsage[s.id] && meta.summonUsage[s.id] > 0){
+            const msg = 'Summon \'' + (s.name||s.id) + '\' is only usable once per run';
+            if(ctx.setMessage) ctx.setMessage(msg);
+            return { success:false, reason:'used_run' };
+          }
+        }
+      }catch(e){ /* ignore meta read errors */ }
       const r = useSummon(encounter,s,targetIndex);
       if(!r.success){ if(ctx.setMessage) ctx.setMessage(r.reason||'Summon failed'); }
       else { if(ctx.setMessage) ctx.setMessage('Summon: '+(s.name||s.id)+' used'); }
@@ -410,15 +174,16 @@ async function startRun({seed, deckIds} = {}){
     currentEnemyIndex,
     endTurn(){
       const res = enemyAct(encounter);
-      // process events for messaging
+      // process events for messaging — include enemy name instead of generic 'Enemy'
+      const enemyName = (encounter.enemy && (encounter.enemy.name || encounter.enemy.id)) ? (encounter.enemy.name || encounter.enemy.id) : 'Enemy';
       let messages = [];
       if(res && res.events && res.events.length) {
         messages = res.events.map(ev => {
-          if(ev.type === 'stunned') return ev.msg;
+          if(ev.type === 'stunned') return enemyName + ' stunned and skipped its turn';
           if(ev.type === 'hit') {
               const name = ev.heroName || (encounter.playfield[ev.slot] && encounter.playfield[ev.slot].base && encounter.playfield[ev.slot].base.name) || ('space ' + (ev.slot+1));
               const totalDmg = (ev.tempTaken||0)+(ev.hpTaken||0);
-              const attackPrefix = ev.attackName ? ('Enemy used ' + ev.attackName + ' and ') : '';
+              const attackPrefix = ev.attackName ? (enemyName + ' used ' + ev.attackName + ' and ') : (enemyName + ' ');
               if(ev.died) return attackPrefix + 'hit ' + name + ' for ' + totalDmg + ' and killed it';
               if(totalDmg === 0) return attackPrefix + 'attacked ' + name + ' but dealt no damage';
               return attackPrefix + 'hit ' + name + ' for ' + totalDmg + ', remaining HP: ' + ev.remainingHp;
@@ -426,14 +191,14 @@ async function startRun({seed, deckIds} = {}){
           return null;
         }).filter(Boolean);
       }
-      // If no messages were generated, show a fallback
+      // If no messages were generated, show a fallback using the enemy's name
       if (!messages.length) {
         if (res && res.did === 'enemyStunned') {
-          messages = ['Enemy stunned and skipped its turn'];
+          messages = [enemyName + ' stunned and skipped its turn'];
         } else if (res && res.did === 'enemyAct') {
-          messages = ['Enemy could not attack (no targets)'];
+          messages = [enemyName + ' could not attack (no targets)'];
         } else {
-          messages = ['Enemy turn passed'];
+          messages = [enemyName + ' turn passed'];
         }
       }
       if(messages.length) ctx.setMessage(messages.join('\n'), 1000); // 1 second for enemy actions
@@ -540,17 +305,226 @@ async function startRun({seed, deckIds} = {}){
         const endCtx = { data, runSummary, vInterest, onRestart: ()=> navigate('start') };
         // prevent any pending timeouts or future onStateChange calls from re-rendering the battle
         ctx.onStateChange = ()=>{};
-        ctx.setMessage = ()=>{};
-        console.log('Encounter finished: enemy wins, navigating to end screen', runSummary);
+        ctx.setMessage = ()=>{};        
         navigate('end', endCtx);
         return;
       }
       // otherwise continue same encounter
       navigate('battle', ctx);
-    },
-    onStateChange(){ navigate('battle', ctx); }
+    }
   };
-  navigate('battle', ctx);
+
+  return { ctx, deck, encounter, runSummary, currentEnemyIndex };
+}
+
+// Shared handler for hero actions (consolidates SFX + message logic)
+function handlePlayHeroAction(encounter, ctx, slot, targetIndex){
+  const res = playHeroAction(encounter, slot, targetIndex);
+  if(!res || !res.success){ if(ctx.setMessage) ctx.setMessage((res && res.reason) ? res.reason : 'Action failed'); return res; }
+  if(res.type === 'attack'){
+    // include hero & enemy names in the attack message
+    const heroName = (encounter.playfield && encounter.playfield[slot] && encounter.playfield[slot].base && encounter.playfield[slot].base.name) ? encounter.playfield[slot].base.name : ('Hero ' + (slot+1));
+    const enemyName = (encounter.enemy && (encounter.enemy.name || encounter.enemy.id)) ? (encounter.enemy.name || encounter.enemy.id) : 'Enemy';
+    if(ctx.setMessage) ctx.setMessage(heroName+' dealt '+res.dmg+' damage. '+enemyName+' HP: '+res.enemyHp);
+    try{
+      if(res.dmg && res.dmg > 0){
+        const sfxCandidates = ['./assets/sfx/player_attack.mp3','assets/sfx/player_attack.mp3','/assets/sfx/player_attack.mp3','./assets/music/player_attack.mp3','assets/music/player_attack.mp3','/assets/music/player_attack.mp3'];
+        AudioManager.playSfx(sfxCandidates, { volume: 0.5 });
+      }
+    }catch(e){}
+  } else if(res.type === 'heal'){
+    if(ctx.setMessage) ctx.setMessage('Hero healed '+res.healed+' HP (now '+res.hp+')');
+  } else if(res.type === 'support' && res.refreshed === 'volo'){
+    if(ctx.setMessage) ctx.setMessage("Support active: Volo ability available again");
+  } else if(res.type === 'support'){
+    if(ctx.setMessage) ctx.setMessage('Support active: will be targeted by next single-target enemy attack');
+  }
+  return res;
+}
+
+// Shared handler for placing a hero (used by multiple contexts)
+function handlePlaceHero(encounter, ctx, card){
+  // Always prompt UI for slot selection instead of auto-placing.
+  // The UI should call `ctx.placeHeroAt(slot, card)` when the player selects a slot.
+  return { success:false, reason:'prompt' };
+}
+
+function appStart(){
+  // On first-ever run, grant starter ownership if none present
+  try{
+    if((meta.runs||0) === 0){
+      if(!(Array.isArray(meta.ownedCards) && meta.ownedCards.length > 0)){
+        meta.ownedCards = (data.cards||[]).filter(c=>c && c.starter).map(c=>c.id);
+      }
+      if(!(Array.isArray(meta.ownedSummons) && meta.ownedSummons.length > 0)){
+        meta.ownedSummons = (data.summons||[]).filter(s=>s && s.starter).map(s=>s.id);
+      }
+      saveMeta(meta);
+    }
+  }catch(e){}
+  register('start', (root)=> {
+    // Switch to menu music when entering the start screen
+    try{
+      const musicCandidates = ['./assets/music/menu.mp3','assets/music/menu.mp3','/assets/music/menu.mp3'];
+      AudioManager.init(musicCandidates[0], { autoplay:true, loop:true });
+    }catch(e){ /* ignore */ }
+    return renderStart(root, {
+      data,
+      meta,
+      selectCard(id){ },
+      onStartRun(opts){ startRun(opts); },
+      onShowStats(){ navigate('stats'); },
+      onShowUpgrades(){ navigate('upgrades'); },
+      onDebugGrant(){
+        try{ meta.ip = (meta.ip||0) + 10000; saveMeta(meta); }catch(e){}
+        navigate('start');
+      },
+      onDebugUnlock(){
+        try{
+          // grant all cards and summons
+          meta.ownedCards = (data.cards||[]).filter(c=>c && c.id).map(c=>c.id);
+          meta.ownedSummons = (data.summons||[]).filter(s=>s && s.id).map(s=>s.id);
+          meta.legendaryUnlocked = true;
+          // top up IP too
+          meta.ip = (meta.ip||0) + 10000;
+          saveMeta(meta);
+        }catch(e){}
+        navigate('start');
+      }
+      ,
+      onDebugUnlockTown(){
+        try{
+          meta.totalIpEarned = Math.max(1, (meta.totalIpEarned||0));
+          saveMeta(meta);
+        }catch(e){}
+        navigate('start');
+      }
+      ,
+      onDebugStartEnemy(indexOrId){
+        try{
+          // resolve index if provided an id/name
+          let idx = -1;
+          if(typeof indexOrId === 'number') idx = Number(indexOrId);
+          else if(typeof indexOrId === 'string') idx = (data.enemies||[]).findIndex(e=> e && (e.id===indexOrId || e.name===indexOrId));
+          if(idx < 0 || !(data.enemies && data.enemies[idx])) { return; }
+          // build a random chosen deck (sample up to 10 cards from available card pool)
+          const pool = (data.cards||[]).filter(c=>c && c.id);
+          const desired = Math.min(10, pool.length);
+          const chosen = [];
+          while(chosen.length < desired){
+            const idxPick = (typeof RNG !== 'undefined' && RNG) ? RNG.int(pool.length) : Math.floor(Math.random()*pool.length);
+            const id = pool[idxPick].id;
+            if(!chosen.includes(id)) chosen.push(id);
+          }
+          // build deck and start a single-encounter state
+          const session = createEncounterSession(idx, chosen, RNG);
+          navigate('battle', session.ctx);
+        }catch(e){}
+      }
+    });
+  });
+
+
+  register('stats', (root)=> renderStats(root, { data, meta, onBack: ()=> navigate('start') }));
+
+  register('upgrades', (root)=> {
+    // Switch to town music when entering upgrades screen (if available)
+    try{
+      const musicCandidates = ['./assets/music/town.mp3','assets/music/town.mp3','/assets/music/town.mp3'];
+      AudioManager.init(musicCandidates[0], { autoplay:true, loop:true });
+    }catch(e){ /* ignore */ }
+    return renderUpgrades(root, {
+      data,
+      meta,
+      buyUpgrade(id){
+        const u = (data.upgrades||[]).find(x=>x.id===id || x.upgrade===id);
+        if(!u) return;
+        const res = buyUpgrade(meta, u);
+        try{ saveMeta(meta); }catch(e){}
+        // simple feedback via alert if available
+        if(typeof window !== 'undefined' && window.alert){
+          if(res && res.success) window.alert('Purchased '+(u.upgrade||u.id));
+          else if(res && res.reason === 'prereq') window.alert('Cannot purchase: requires Increase AP to 4 first');
+          else window.alert('Cannot purchase: insufficient IP');
+        }
+        // re-render the upgrades screen
+        navigate('upgrades');
+      },
+      buyLegendary(itemId){
+        // look up the item in cards, summons, or legendary lists
+        const findIn = (arr)=> (arr||[]).find(x=>x.id===itemId || x.name===itemId || x.upgrade===itemId);
+        const item = findIn(data.cards) || findIn(data.summons) || findIn(data.legendary) || findIn(data.upgrades);
+        if(!item) return;
+        const res = buyLegendaryItem(meta, item);
+        try{ saveMeta(meta); }catch(e){}
+        if(typeof window !== 'undefined' && window.alert){
+          if(res && res.success) window.alert('Purchased '+(item.name||item.upgrade||item.id));
+          else window.alert('Cannot purchase: insufficient IP');
+        }
+        navigate('upgrades');
+      },
+      onBack: ()=> navigate('start')
+    });
+  });
+
+  register('battle', (root, params)=> renderBattle(root, params));
+  register('encounter_end', (root, params)=> renderEncounterEnd(root, params));
+  // Consolidate shop UI: redirect legacy `store` route to the canonical `upgrades` screen
+  register('store', (root, params)=> navigate('upgrades'));
+  register('end', (root, params)=> renderEnd(root, params));
+
+  navigate('start');
+
+  // Initialize background music to menu track. Place your music file at `assets/music/menu.mp3`.
+  try{
+    const musicCandidates = ['./assets/music/menu.mp3','assets/music/menu.mp3','/assets/music/menu.mp3'];
+    // Start with the first candidate; browsers will gracefully fail if missing.
+    AudioManager.init(musicCandidates[0], { autoplay:true, loop:true });
+    // Convenience helpers exposed for debugging or UI wiring
+    window.toggleMusic = function(){ return AudioManager.toggle(); };
+    window.setMusicVolume = function(v){ return AudioManager.setVolume(v); };
+    window.isMusicEnabled = function(){ return AudioManager.isEnabled(); };
+    // Quick SFX tester and controls
+    window.playSfxTest = function(){ return AudioManager.playSfx(['./assets/sfx/player_attack.mp3','./assets/music/player_attack.mp3'], { volume: 1.0 }); };
+    window.setSfxEnabled = function(on){ return AudioManager.setSfxEnabled(!!on); };
+    window.isSfxEnabled = function(){ return AudioManager.sfxEnabled; };
+  }catch(e){}
+
+  // Ensure playback starts after a user gesture when the browser blocks autoplay.
+  (function ensureGestureStart(){
+    try{
+      const events = ['pointerdown','keydown','touchstart','click'];
+      const handler = function(){
+        try{ AudioManager.play(); }catch(e){}
+        events.forEach(ev => window.removeEventListener(ev, handler));
+      };
+      events.forEach(ev => window.addEventListener(ev, handler, { passive: true }));
+    }catch(e){ /* ignore */ }
+  })();
+
+  // Floating stats button removed — stats button is shown only on the start (menu) screen
+}
+
+let RNG = createRNG();
+
+async function startRun({seed, deckIds} = {}){
+  if(seed) RNG = createRNG(seed);
+  let chosen = (deckIds && deckIds.length>0) ? deckIds : ((meta && Array.isArray(meta.ownedCards) && meta.ownedCards.length>0) ? meta.ownedCards.slice() : data.cards.filter(c=>c.starter).map(c=>c.id));
+  // Ensure the player has starter summons available for the run if none are owned
+  try{
+    if(!(meta && Array.isArray(meta.ownedSummons) && meta.ownedSummons.length > 0)){
+      meta.ownedSummons = (data.summons||[]).filter(s=>s && s.starter).map(s=>s.id);
+      saveMeta(meta);
+    }
+  }catch(e){ /* ignore */ }
+  // Track characters taken on a run (increment per-run usage)
+  try{
+    meta.characterUsage = meta.characterUsage || {};
+    chosen.forEach(id=>{ meta.characterUsage[id] = (meta.characterUsage[id] || 0) + 1; });
+    saveMeta(meta);
+  }catch(e){ /* ignore */ }
+  const session = createEncounterSession(0, chosen, RNG);
+  navigate('battle', session.ctx);
 }
 
 loadData().then(appStart).catch(err=>{document.getElementById('app').textContent='Load error: '+err});

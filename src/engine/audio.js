@@ -6,6 +6,7 @@ export const AudioManager = {
   currentSrc: null,
   masterMultiplier: 0.8,
   enabled: true,
+  sfxEnabled: true,
   volume: 0.15,
   _fadeRaf: null,
   _fadeCancel: false,
@@ -98,6 +99,9 @@ export const AudioManager = {
   setEnabled(on){ this.enabled = !!on; try{ localStorage.setItem(MUSIC_ENABLED_KEY, this.enabled ? '1' : '0'); }catch(e){} if(this.enabled) this.play(); else this.pause(); },
   toggle(){ this.setEnabled(!this.enabled); return this.enabled; },
 
+  setSfxEnabled(on){ this.sfxEnabled = !!on; return this.sfxEnabled; },
+  toggleSfx(){ this.sfxEnabled = !this.sfxEnabled; return this.sfxEnabled; },
+
   setVolume(v){
     this.volume = Math.max(0, Math.min(1, Number(v) || 0));
     try{ localStorage.setItem(MUSIC_VOLUME_KEY, String(this.volume)); }catch(e){}
@@ -136,3 +140,29 @@ export const AudioManager = {
 };
 
 export default AudioManager;
+
+// Play a short one-shot sound effect. `srcs` may be a string or array of candidate paths.
+AudioManager.playSfx = function(srcs, { volume = 1.0, loop = false } = {}){
+  if(!srcs) return;
+  if(!this.sfxEnabled) return; // respect SFX setting
+  const candidates = Array.isArray(srcs) ? srcs : [srcs];
+  for(const src of candidates){
+    try{
+      try{ console.debug('AudioManager.playSfx: trying', src); }catch(_){}
+      const s = new Audio(src);
+      s.loop = !!loop;
+      try{
+        // SFX volume should be independent of music volume; scale by masterMultiplier
+        const sfxVol = Math.max(0, Math.min(1, Number(volume) || 0));
+        s.volume = Math.max(0, Math.min(1, sfxVol * this.masterMultiplier));
+      }catch(e){}
+      try{
+        const p = s.play();
+        if(p && p.catch) p.catch(()=>{});
+        try{ console.debug('AudioManager.playSfx: playing', src); }catch(_){}
+        return s;
+      }catch(e){ try{ console.debug('AudioManager.playSfx error for', src, e); }catch(_){} }
+    }catch(e){ try{ console.debug('AudioManager.playSfx construction failed for', src, e); }catch(_){} }
+  }
+  return null;
+};
