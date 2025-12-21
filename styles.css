@@ -345,6 +345,24 @@ body{background:linear-gradient(180deg,var(--bg),#071024);color:#e6eef8}
 /* top row contains playfield on the left and enemy on the right */
 .battle-top{display:flex;gap:18px;align-items:flex-start}
 
+/* How to Play screen styles */
+.help-panel{
+  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.06));
+  padding:16px;
+  border-radius:10px;
+  color: #e6eef8;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.36);
+  max-height: 90vh;
+  overflow:auto;
+}
+.howto-columns{display:grid;grid-template-columns:1fr;gap:12px}
+@media(min-width:900px){ .howto-columns{ grid-template-columns: 1fr 1fr } }
+.howto-section{padding:8px;border-radius:8px;background:linear-gradient(180deg,rgba(255,255,255,0.01),rgba(0,0,0,0.02));}
+.howto-section p{margin:6px 0;color:#d7e9dd}
+.howto-list{margin:6px 0 0 18px;color:#d7e9dd}
+.howto-legend{font-weight:800;color:var(--accent);margin-bottom:6px}
+.howto-emoji{margin-right:6px}
+
 /* Enemy area compensation: reduce how much the enemy visually scales by
   applying a partial inverse transform controlled by --enemy-scale. This
   counteracts the global --ui-scale so the enemy appears more stable. */

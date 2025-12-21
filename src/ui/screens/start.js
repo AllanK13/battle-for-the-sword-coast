@@ -24,9 +24,14 @@ export function renderStart(root, ctx){
   }
 
   // Add a fixed-position Stats button that only appears on the start/menu screen
-    const statsBtn = el('button',{class:'btn stats-btn floating icon', style:'position:fixed;right:92px;bottom:36px;z-index:10030;height:40px;display:flex;align-items:center;justify-content:center;padding:4px 8px;border-radius:6px;font-size:16px', title:'Stats'},[ el('span',{style:'font-size:22px;line-height:1;display:inline-block'},['📊']) ]);
-  statsBtn.addEventListener('click', ()=>{ if(ctx.onShowStats) ctx.onShowStats(); });
-  container.appendChild(statsBtn);
+    const statsBtn = el('button',{class:'btn stats-btn floating icon', style:'position:fixed;right:116px;bottom:36px;z-index:10030;height:40px;display:flex;align-items:center;justify-content:center;padding:4px 8px;border-radius:6px;font-size:16px', title:'Stats'},[ el('span',{style:'font-size:22px;line-height:1;display:inline-block'},['📊']) ]);
+    statsBtn.addEventListener('click', ()=>{ if(ctx.onShowStats) ctx.onShowStats(); });
+    container.appendChild(statsBtn);
+
+    // How to Play button (next to stats button)
+    const howtoBtn = el('button',{class:'btn howto-btn floating icon', style:'position:fixed;left:18px;bottom:36px;z-index:10030;height:40px;display:flex;align-items:center;justify-content:center;padding:4px 8px;border-radius:6px;font-size:16px', title:'How to Play'},[ el('span',{style:'font-size:22px;line-height:1;display:inline-block'},['❓']) ]);
+    howtoBtn.addEventListener('click', ()=>{ if(ctx.onShowHowTo) ctx.onShowHowTo(); });
+    container.appendChild(howtoBtn);
 
   // Floating music control placed next to the stats button (bottom-right)
   try{

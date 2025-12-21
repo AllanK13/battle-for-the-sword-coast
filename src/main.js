@@ -6,6 +6,7 @@ import { AudioManager } from './engine/audio.js';
 import { register, navigate } from './ui/router.js';
 import { renderStart } from './ui/screens/start.js';
 import { renderStats } from './ui/screens/stats.js';
+import { renderHowTo } from './ui/screens/howto.js';
 import { renderUpgrades } from './ui/screens/upgrades.js';
 import { renderBattle } from './ui/screens/battle.js';
 import { renderEnd } from './ui/screens/end.js';
@@ -418,6 +419,7 @@ function appStart(){
       selectCard(id){ },
       onStartRun(opts){ startRun(opts); },
       onShowStats(){ navigate('stats'); },
+      onShowHowTo(){ navigate('howto'); },
       onShowUpgrades(){ navigate('upgrades'); },
       onDebugGrant(){
         try{ meta.ip = (meta.ip||0) + 10000; saveMeta(meta); }catch(e){}
@@ -513,6 +515,7 @@ function appStart(){
 
   register('battle', (root, params)=> renderBattle(root, params));
   register('encounter_end', (root, params)=> renderEncounterEnd(root, params));
+  register('howto', (root)=> renderHowTo(root, { data, meta, onBack: ()=> navigate('start') }));
   // Consolidate shop UI: redirect legacy `store` route to the canonical `upgrades` screen
   register('store', (root, params)=> navigate('upgrades'));
   register('end', (root, params)=> renderEnd(root, params));
