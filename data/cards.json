@@ -279,7 +279,7 @@
     "name": "Br'er",
     "type": "Suppor",
     "hp": 20.0,
-    "ability": "Diasming attack: 5 damage, and next attack deals half damage",
+    "ability": "Disarming attack: 5 damage, and next attack deals half damage",
     "actionType": "support",
     "tier": 4,
     "slot_cost": 4.0,
