@@ -126,7 +126,7 @@ export function renderUpgrades(root, ctx){
       // add a special class for Blackrazor so we can size its image differently
       if(it && it.id === 'blackrazor'){ try{ elCard.classList.add('blackrazor'); }catch(e){} }
       // Legendary store: render fixed griff1 for Griff
-      const lOpts = { hideSlot: true, hideCost: true, footer };
+      const lOpts = { hideSlot: !isCard, hideCost: true, footer };
       try{ if(it && it.id === 'griff') lOpts.imageOverride = './assets/griff1.png'; }catch(e){}
       elCard.appendChild(cardTile(it, lOpts));
       lGrid.appendChild(elCard);
