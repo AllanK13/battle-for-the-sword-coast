@@ -127,7 +127,7 @@
     "actionType": "attack",
     "tier": 2,
     "slot_cost": 2.0,
-    "ip_cost": 12,
+    "ip_cost": 15,
     "id": "syranna",
     "starter": false
   },
@@ -139,7 +139,7 @@
     "actionType": "attack",
     "tier": 2,
     "slot_cost": 2.0,
-    "ip_cost": 12,
+    "ip_cost": 15,
     "id": "grogu",
     "starter": false
   },
@@ -151,7 +151,7 @@
     "actionType": "heal",
     "tier": 2,
     "slot_cost": 2.0,
-    "ip_cost": 12,
+    "ip_cost": 15,
     "id": "eddie",
     "starter": false
   },
