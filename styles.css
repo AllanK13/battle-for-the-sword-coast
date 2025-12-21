@@ -499,6 +499,15 @@ body{background:linear-gradient(180deg,var(--bg),#071024);color:#e6eef8}
   filter: none;
 }
 
+/* Blackrazor specific rendering fixes (prevent glitching / scaling artifacts) */
+.battle-panel .card.blackrazor img,
+.upgrades-screen .legendary-grid .card-wrap.blackrazor .card-image{
+  max-height: calc(100% - 44px) !important;
+  width: 88% !important;
+  image-rendering: auto;
+  filter: none;
+}
+
 /* Target the enemy card's HP stat (first .card-stat inside the card-body) and make it very large */
 .enemy-area .card .card-body .card-stat:first-child{
   font-size:198px !important;

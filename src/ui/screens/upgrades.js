@@ -125,6 +125,7 @@ export function renderUpgrades(root, ctx){
       // use the shared cardTile renderer so images/icons are shown consistently
       // add a special class for Blackrazor so we can size its image differently
       if(it && it.id === 'blackrazor'){ try{ elCard.classList.add('blackrazor'); }catch(e){} }
+      try{ if(it && it.id === 'blackrazor') lOpts.imageOverride = './assets/Blackrazor.png'; }catch(e){}
       // Legendary store: render fixed griff1 for Griff
       const lOpts = { hideSlot: !isCard, hideCost: true, footer };
       try{ if(it && it.id === 'griff') lOpts.imageOverride = './assets/griff1.png'; }catch(e){}

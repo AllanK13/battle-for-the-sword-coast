@@ -259,7 +259,9 @@ export function renderBattle(root, ctx){
     }
     availableSummons.forEach(s=>{
       // build the summon card (cardTile returns a `.card` element)
-      const sCard = cardTile(s, { hideSlot: true, hideCost: true });
+      const sOpts = { hideSlot: true, hideCost: true };
+      try{ if(s && s.id === 'blackrazor') sOpts.imageOverride = './assets/Blackrazor.png'; }catch(e){}
+      const sCard = cardTile(s, sOpts);
       // shrink Blackrazor image in the summons panel by tagging the card
       if(s && s.id === 'blackrazor'){ try{ sCard.classList.add('blackrazor'); }catch(e){} }
       const used = ctx.encounter.summonUsed && ctx.encounter.summonUsed[s.id];
