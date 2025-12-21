@@ -1164,3 +1164,15 @@ body{
   box-shadow:0 6px 12px rgba(250,200,60,0.18);
   z-index:40;
 }
+
+/* Dragging visuals for hand-to-playfield placement */
+.dragging-card{
+  opacity:0.95;
+  transform:translateZ(0);
+  box-shadow:0 18px 40px rgba(0,0,0,0.6);
+  border-radius:12px;
+}
+.card-wrap.panel.pending-slot-hover{
+  outline:4px dashed rgba(134,239,172,0.95);
+  box-shadow:0 14px 30px rgba(16,185,129,0.12);
+}

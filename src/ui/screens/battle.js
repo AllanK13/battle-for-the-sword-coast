@@ -5,6 +5,8 @@ import { saveMeta } from '../../engine/meta.js';
 
 function slotNode(slotObj, idx, handlers={}, highlight=false, targetHighlight=false, ctx=null){
   const container = el('div',{class:'card-wrap panel'});
+  // expose slot index for drag-drop hit-testing
+  try{ container.dataset.slot = String(idx); }catch(e){}
   if(highlight) container.classList.add('pending-slot');
   if(targetHighlight) container.classList.add('pending-target');
   if(!slotObj){
@@ -538,22 +540,92 @@ export function renderBattle(root, ctx){
   const handWrap = el('div',{class:'panel hand-wrap'},[]);
   handWrap.appendChild(el('h3',{class:'hand-title'},['Party']));
   const handGrid = el('div',{class:'card-grid'},[]);
+    // helper: start a pointer-based drag from a hand card
+    function startDragFromHand(handIndex, cardWrap){
+      const card = ctx.encounter.deck.hand[handIndex];
+      if(!card){ if(ctx.setMessage) ctx.setMessage('Card not available'); return; }
+      ctx.pendingReplace = { handIndex, mode: 'place' };
+      if(ctx.setMessage) ctx.setMessage('Drag the card to an empty space to place it');
+      ctx.onStateChange && ctx.onStateChange();
+
+      const origCardEl = cardWrap.querySelector && cardWrap.querySelector('.card');
+      const clone = origCardEl ? origCardEl.cloneNode(true) : document.createElement('div');
+      clone.style.position = 'fixed';
+      clone.style.pointerEvents = 'none';
+      clone.style.zIndex = '10050';
+      try{ clone.style.width = (origCardEl ? origCardEl.getBoundingClientRect().width : 120) + 'px'; }catch(e){}
+      clone.classList.add('dragging-card');
+      document.body.appendChild(clone);
+
+      let lastX = 0, lastY = 0;
+      function move(ev){
+        lastX = ev.clientX; lastY = ev.clientY;
+        clone.style.left = (ev.clientX + 8) + 'px';
+        clone.style.top = (ev.clientY + 8) + 'px';
+        try{
+          const elUnder = document.elementFromPoint(ev.clientX, ev.clientY);
+          document.querySelectorAll('.card-wrap.panel.pending-slot-hover').forEach(n=>n.classList.remove('pending-slot-hover'));
+          if(elUnder){
+            const slotEl = elUnder.closest && elUnder.closest('.card-wrap.panel');
+            if(slotEl && typeof slotEl.dataset !== 'undefined'){
+              const si = Number(slotEl.dataset.slot);
+              if(Number.isFinite(si)){
+                const empty = !ctx.encounter.playfield[si];
+                if(empty) slotEl.classList.add('pending-slot-hover');
+              }
+            }
+          }
+        }catch(e){}
+      }
+
+      function up(){
+        document.querySelectorAll('.card-wrap.panel.pending-slot-hover').forEach(n=>n.classList.remove('pending-slot-hover'));
+        const elUnder = document.elementFromPoint(lastX, lastY);
+        if(elUnder){
+          const slotEl = elUnder.closest && elUnder.closest('.card-wrap.panel');
+          if(slotEl && typeof slotEl.dataset !== 'undefined'){
+            const si = Number(slotEl.dataset.slot);
+            if(Number.isFinite(si)){
+              if(!ctx.encounter.playfield[si]){
+                const taken = ctx.encounter.deck.playFromHand(handIndex);
+                if(!taken){ if(ctx.setMessage) ctx.setMessage('Card not available'); }
+                else {
+                  const res = ctx.placeHeroAt(si, taken);
+                  if(!res || !res.success){ try{ ctx.encounter.deck.hand.push(taken); }catch(e){} if(ctx.setMessage) ctx.setMessage(res && res.reason ? res.reason : 'Place failed'); }
+                }
+              } else {
+                if(ctx.setMessage) ctx.setMessage('Slot is occupied.');
+              }
+            }
+          }
+        }
+        try{ document.body.removeChild(clone); }catch(e){}
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', up);
+        ctx.pendingReplace = null;
+        ctx.onStateChange && ctx.onStateChange();
+      }
+
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', up);
+    }
+
     ctx.encounter.deck.hand.forEach((c,i)=>{
       const cardWrap = el('div',{class:'card-wrap panel'});
       cardWrap.appendChild(cardTile(c, { hideCost: true, hideSlot: true }));
 
       const actions = el('div',{class:'row'},[]);
           const placeBtn = el('button',{class:'btn slot-action'},['Place']);
-          placeBtn.addEventListener('click',()=>{
-            // enter pending place mode so the player can click the desired slot
-            // do not remove card from hand until placement is confirmed
-            const card = ctx.encounter.deck.hand[i];
-            if(!card) { if(ctx.setMessage) ctx.setMessage('Card not available'); return; }
-            ctx.pendingReplace = { handIndex: i, mode: 'place' };
-            if(ctx.setMessage) ctx.setMessage('Click an empty space to place '+(card.name||card.id));
-            ctx.onStateChange();
-          });
+          placeBtn.addEventListener('click',()=>{ startDragFromHand(i, cardWrap); });
       actions.appendChild(placeBtn);
+
+      // allow pointerdown on the card itself to begin drag (ignore clicks on buttons)
+      cardWrap.addEventListener('pointerdown', (ev)=>{
+        if(ev.button !== 0) return;
+        if(ev.target && ev.target.closest && ev.target.closest('button')) return;
+        ev.preventDefault();
+        startDragFromHand(i, cardWrap);
+      });
 
       const replaceBtn = el('button',{class:'btn slot-action'},['Replace']);
       if(ctx.encounter.ap < 1) replaceBtn.setAttribute('disabled','');
