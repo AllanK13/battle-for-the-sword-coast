@@ -1,13 +1,12 @@
 import { el, cardTile } from '../renderer.js';
+import { navigate } from '../router.js';
 import { AudioManager } from '../../engine/audio.js';
 
 export function renderStart(root, ctx){
   // wrapper to scope start-screen styles
   const container = el('div',{class:'start-screen'},[]);
-  // show game title and centered title logo image
+  // centered title logo image (title header removed per request)
   const titleText = (ctx && ctx.meta && ctx.meta.gameName) ? ctx.meta.gameName : 'Battle for the Sword Coast';
-  const titleEl = el('h1',{class:'game-title'},[titleText]);
-  container.appendChild(titleEl);
   const logo = el('img',{src:'assets/title_logo.png', alt:titleText, class:'title-logo'});
   logo.addEventListener('error', ()=>{ logo.src='assets/title_logo.jpg'; });
   logo.addEventListener('error', ()=>{ logo.style.display='none'; });
@@ -32,6 +31,13 @@ export function renderStart(root, ctx){
     const howtoBtn = el('button',{class:'btn howto-btn floating icon', style:'position:fixed;left:18px;bottom:36px;z-index:10030;height:40px;display:flex;align-items:center;justify-content:center;padding:4px 8px;border-radius:6px;font-size:16px', title:'How to Play'},[ el('span',{style:'font-size:22px;line-height:1;display:inline-block'},['❓']) ]);
     howtoBtn.addEventListener('click', ()=>{ if(ctx.onShowHowTo) ctx.onShowHowTo(); });
     container.appendChild(howtoBtn);
+
+  // Menu button (top-left) to return to the menu screen
+  try{
+    const menuBtn = el('button',{class:'btn menu-top-btn floating icon', style:'position:fixed;left:18px;top:18px;z-index:10030;height:40px;display:flex;align-items:center;justify-content:center;padding:4px 8px;border-radius:6px;font-size:16px', title:'Menu'},[ el('span',{style:'font-size:20px;line-height:1;display:inline-block'},['🏠']) ]);
+    menuBtn.addEventListener('click', ()=>{ if(ctx && typeof ctx.onShowMenu === 'function') ctx.onShowMenu(); else navigate('menu'); });
+    container.appendChild(menuBtn);
+  }catch(e){ /* ignore */ }
 
   // Floating music control placed next to the stats button (bottom-right)
   try{
