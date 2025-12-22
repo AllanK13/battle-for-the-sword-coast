@@ -1,16 +1,17 @@
 import { createRNG } from './engine/rng.js';
 import { buildDeck } from './engine/deck.js';
 import { startEncounter, playHeroAttack, playHeroAction, enemyAct, isFinished, placeHero, replaceHero, useSummon, defendHero } from './engine/encounter.js';
-import { createMeta, buyUpgrade, buyLegendaryItem, loadMeta, saveMeta } from './engine/meta.js';
+import { createMeta, buyUpgrade, buyLegendaryItem, loadMeta, saveMeta } from './engine/arcade_meta.js';
 import { AudioManager } from './engine/audio.js';
 import { register, navigate } from './ui/router.js';
-import { renderStart } from './ui/screens/start.js';
-import { renderStats } from './ui/screens/stats.js';
-import { renderHowTo } from './ui/screens/howto.js';
-import { renderUpgrades } from './ui/screens/upgrades.js';
+import { renderStart } from './ui/screens/arcade_start.js';
+import { renderMenu } from './ui/screens/menu.js';
+import { renderStats } from './ui/screens/arcade_stats.js';
+import { renderHowTo } from './ui/screens/arcade_howto.js';
+import { renderUpgrades } from './ui/screens/arcade_upgrades.js';
 import { renderBattle } from './ui/screens/battle.js';
-import { renderEnd } from './ui/screens/end.js';
-import { renderEncounterEnd } from './ui/screens/encounter_end.js';
+import { renderEnd } from './ui/screens/arcade_end.js';
+import { renderEncounterEnd } from './ui/screens/arcade_encounter_end.js';
 
 const data = {};
 let meta = loadMeta();
@@ -324,16 +325,16 @@ function createEncounterSession(enemyIndex, chosenIds, rng){
             } else {
               // no more enemies -> end run
               try{ meta.runs = (meta.runs||0) + 1; saveMeta(meta); }catch(e){}
-              const endCtx = { data, runSummary, onRestart: ()=>{ try{ meta.summonUsage = {}; saveMeta(meta); }catch(e){}; navigate('start'); } };
+              const endCtx = { data, runSummary, onRestart: ()=>{ try{ meta.summonUsage = {}; saveMeta(meta); }catch(e){}; navigate('arcade_start'); } };
               // prevent any pending timeouts or future onStateChange calls from re-rendering the battle
               ctx.onStateChange = ()=>{};
               ctx.setMessage = ()=>{};
-              navigate('end', endCtx);
+              navigate('arcade_end', endCtx);
               return;
             }
           }
         };
-        navigate('encounter_end', encounterEndCtx);
+        navigate('arcade_encounter_end', encounterEndCtx);
         return;
       } else if(finished === 'enemy'){
         // record death
@@ -355,11 +356,11 @@ function createEncounterSession(enemyIndex, chosenIds, rng){
           }
           saveMeta(meta);
         }catch(e){}
-        const endCtx = { data, runSummary, vInterest, onRestart: ()=>{ try{ meta.summonUsage = {}; saveMeta(meta); }catch(e){}; navigate('start'); } };
+        const endCtx = { data, runSummary, vInterest, onRestart: ()=>{ try{ meta.summonUsage = {}; saveMeta(meta); }catch(e){}; navigate('arcade_start'); } };
         // prevent any pending timeouts or future onStateChange calls from re-rendering the battle
         ctx.onStateChange = ()=>{};
         ctx.setMessage = ()=>{};        
-        navigate('end', endCtx);
+        navigate('arcade_end', endCtx);
         return;
       }
       // otherwise continue same encounter
@@ -430,7 +431,7 @@ function appStart(){
       saveMeta(meta);
     }
   }catch(e){}
-  register('start', (root)=> {
+  register('arcade_start', (root)=> {
     // Switch to menu music when entering the start screen
     try{
       const musicCandidates = ['./assets/music/menu.mp3','assets/music/menu.mp3','/assets/music/menu.mp3'];
@@ -441,12 +442,12 @@ function appStart(){
       meta,
       selectCard(id){ },
       onStartRun(opts){ startRun(opts); },
-      onShowStats(){ navigate('stats'); },
-      onShowHowTo(){ navigate('howto'); },
-      onShowUpgrades(){ navigate('upgrades'); },
+      onShowStats(){ navigate('arcade_stats'); },
+      onShowHowTo(){ navigate('arcade_howto'); },
+      onShowUpgrades(){ navigate('arcade_upgrades'); },
       onDebugGrant(){
         try{ meta.ip = (meta.ip||0) + 10000; saveMeta(meta); }catch(e){}
-        navigate('start');
+        navigate('arcade_start');
       },
       onDebugUnlock(){
         try{
@@ -458,7 +459,7 @@ function appStart(){
           meta.ip = (meta.ip||0) + 10000;
           saveMeta(meta);
         }catch(e){}
-        navigate('start');
+        navigate('arcade_start');
       }
       ,
       onDebugUnlockTown(){
@@ -466,7 +467,7 @@ function appStart(){
           meta.totalIpEarned = Math.max(1, (meta.totalIpEarned||0));
           saveMeta(meta);
         }catch(e){}
-        navigate('start');
+        navigate('arcade_start');
       }
       ,
       onDebugStartEnemy(indexOrId){
@@ -493,10 +494,13 @@ function appStart(){
     });
   });
 
+  // Top-level menu screen with Arcade / Adventure / Campaign options
+  register('menu', (root)=> renderMenu(root, { data, meta, onArcade: ()=> navigate('arcade_start') }));
 
-  register('stats', (root)=> renderStats(root, { data, meta, onBack: ()=> navigate('start') }));
 
-  register('upgrades', (root)=> {
+  register('arcade_stats', (root)=> renderStats(root, { data, meta, onBack: ()=> navigate('arcade_start') }));
+
+  register('arcade_upgrades', (root)=> {
     // Switch to town music when entering upgrades screen (if available)
     try{
       const musicCandidates = ['./assets/music/town.mp3','assets/music/town.mp3','/assets/music/town.mp3'];
@@ -517,7 +521,7 @@ function appStart(){
           else window.alert('Cannot purchase: insufficient IP');
         }
         // re-render the upgrades screen
-        navigate('upgrades');
+        navigate('arcade_upgrades');
       },
       buyLegendary(itemId){
         // look up the item in cards, summons, or legendary lists
@@ -530,20 +534,20 @@ function appStart(){
           if(res && res.success) window.alert('Purchased '+(item.name||item.upgrade||item.id));
           else window.alert('Cannot purchase: insufficient IP');
         }
-        navigate('upgrades');
+        navigate('arcade_upgrades');
       },
-      onBack: ()=> navigate('start')
+      onBack: ()=> navigate('arcade_start')
     });
   });
 
   register('battle', (root, params)=> renderBattle(root, params));
-  register('encounter_end', (root, params)=> renderEncounterEnd(root, params));
-  register('howto', (root)=> renderHowTo(root, { data, meta, onBack: ()=> navigate('start') }));
-  // Consolidate shop UI: redirect legacy `store` route to the canonical `upgrades` screen
-  register('store', (root, params)=> navigate('upgrades'));
-  register('end', (root, params)=> renderEnd(root, params));
+  register('arcade_encounter_end', (root, params)=> renderEncounterEnd(root, params));
+  register('arcade_howto', (root)=> renderHowTo(root, { data, meta, onBack: ()=> navigate('arcade_start') }));
+  // Consolidate shop UI: redirect legacy `store` route to the canonical `arcade_upgrades` screen
+  register('store', (root, params)=> navigate('arcade_upgrades'));
+  register('arcade_end', (root, params)=> renderEnd(root, params));
 
-  navigate('start');
+  navigate('menu');
 
   // Initialize background music to menu track. Place your music file at `assets/music/menu.mp3`.
   try{

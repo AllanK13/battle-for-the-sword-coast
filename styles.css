@@ -1266,3 +1266,32 @@ body.dragging-active .card-wrap.panel{
   outline:4px dashed rgba(134,239,172,0.95);
   box-shadow:0 14px 30px rgba(16,185,129,0.12);
 }
+
+/* Menu screen: top-level entry with logo and large mode buttons */
+.menu-screen{ display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px; padding:30px; min-height:60vh }
+.menu-logo{ max-width:560px; width:70%; height:auto; display:block; margin:0 auto }
+/* menu-title removed — menu now uses the shared .game-title styles */
+.menu-buttons{ display:flex; flex-direction:column; gap:14px; width:360px; max-width:92% }
+.menu-button{ padding:18px 22px; font-size:20px; font-weight:900; border-radius:12px; display:flex; justify-content:center; align-items:center; gap:8px }
+.menu-button:not(.disabled):hover{ transform:translateY(-3px); box-shadow:0 14px 36px rgba(0,0,0,0.36) }
+.menu-button.disabled, .menu-button[disabled]{ background:linear-gradient(180deg,#374151,#1f2937); color:#9ca3af; cursor:not-allowed; box-shadow:none; opacity:0.95 }
+
+/* Small badge shown on disabled menu modes */
+.menu-button{ position:relative }
+.coming-soon-badge{ position:absolute; right:12px; top:8px; background:rgba(0,0,0,0.6); color:#cbd5e1; padding:6px 8px; border-radius:8px; font-size:12px; font-weight:800; pointer-events:none; text-transform:uppercase; letter-spacing:0.6px }
+
+/* Arcade button styling */
+.menu-button.arcade{ background:linear-gradient(180deg,#60a5fa,#2563eb); color:#fff; padding:20px 24px; font-size:22px; font-weight:900; border-radius:14px; border:2px solid rgba(0,0,0,0.2); box-shadow: 0 18px 44px rgba(37,99,235,0.28); display:flex; align-items:center; justify-content:center; gap:10px }
+.menu-button.arcade:hover{ transform:translateY(-4px); box-shadow: 0 24px 56px rgba(37,99,235,0.34); filter:brightness(1.03) }
+.menu-btn-icon-left{ display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:10px; background:rgba(255,255,255,0.12); font-size:18px; margin-right:8px }
+
+/* Adventure & Campaign styling (muted when disabled but visually distinct) */
+.menu-button.adventure{ background:linear-gradient(180deg,#f59e0b,#b45309); color:#1f2937; padding:18px 22px; font-size:20px; font-weight:900; border-radius:12px; border:2px solid rgba(0,0,0,0.12); box-shadow: 0 12px 34px rgba(245,158,11,0.18); display:flex; align-items:center; justify-content:center; gap:10px }
+.menu-button.adventure:hover{ transform:translateY(-3px); box-shadow: 0 18px 44px rgba(245,158,11,0.22) }
+.menu-button.campaign{ background:linear-gradient(180deg,#8b5cf6,#6d28d9); color:#fff; padding:18px 22px; font-size:20px; font-weight:900; border-radius:12px; border:2px solid rgba(0,0,0,0.12); box-shadow: 0 12px 34px rgba(107,70,193,0.18); display:flex; align-items:center; justify-content:center; gap:10px }
+.menu-button.campaign:hover{ transform:translateY(-3px); box-shadow: 0 18px 44px rgba(107,70,193,0.22) }
+
+/* Keep 'disabled' visual but allow distinct hue using a more specific selector */
+.menu-button.adventure.disabled, .menu-button.adventure[disabled]{ background:linear-gradient(180deg,#7c4a05,#4b2b06); color:#f3e8d8; opacity:0.95 }
+.menu-button.campaign.disabled, .menu-button.campaign[disabled]{ background:linear-gradient(180deg,#5b21b6,#3b0766); color:#efe7ff; opacity:0.95 }
+

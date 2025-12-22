@@ -63,7 +63,7 @@ export function renderHowTo(root, ctx){
   helpPanel.appendChild(footerQuote);
 
   const back = el('button',{class:'btn stats-back-btn', style:'position:absolute;right:12px;top:8px'},['Back']);
-  back.addEventListener('click', ()=>{ if(ctx && ctx.onBack) ctx.onBack(); else if(window.navigate) window.navigate('start'); });
+  back.addEventListener('click', ()=>{ if(ctx && ctx.onBack) ctx.onBack(); else if(window.navigate) window.navigate('arcade_start'); });
 
   container.appendChild(helpPanel);
   container.appendChild(back);

@@ -1,7 +1,7 @@
 import { el, cardTile } from '../renderer.js';
 import { navigate } from '../router.js';
 import { AudioManager } from '../../engine/audio.js';
-import { saveMeta } from '../../engine/meta.js';
+import { saveMeta } from '../../engine/arcade_meta.js';
 
 function slotNode(slotObj, idx, handlers={}, highlight=false, targetHighlight=false, ctx=null){
   const container = el('div',{class:'card-wrap panel'});
@@ -112,7 +112,7 @@ export function renderBattle(root, ctx){
     try{ if(ctx && ctx.meta) { ctx.meta.summonUsage = {}; saveMeta(ctx.meta); } }catch(e){ console.debug('GiveUp: saveMeta failed', e); }
     // attempt immediate navigation, then fall back to forced page load if that fails
     try{
-      try{ navigate('start'); console.debug('GiveUp: navigate(start) invoked'); }
+      try{ navigate('arcade_start'); console.debug('GiveUp: navigate(arcade_start) invoked'); }
       catch(e){ console.debug('GiveUp: navigate threw', e); }
       // schedule forced navigation fallbacks in case route navigation doesn't take effect
       setTimeout(()=>{
