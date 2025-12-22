@@ -62,20 +62,17 @@ export function renderStats(root, ctx){
   const summonsData = baseSummons.concat(legendarySummons);
   const summonUsage = (meta.totalSummonUsage && Object.keys(meta.totalSummonUsage).length>0) ? meta.totalSummonUsage : (meta.summonUsage || {});
   const summonNameCounts = {};
-  // Initialize counts for all known summons (so the section shows even when zero)
-  summonsData.forEach(s=>{
-    if(!s) return;
-    const display = s.name || s.id || String(s);
-    summonNameCounts[display] = 0;
-  });
-  // Add persisted usage counts from meta (aggregating by id or name)
+  // Only display summons usage if there are any recorded usages (>0)
   Object.entries(summonUsage).forEach(([id, cnt])=>{
+    if(!cnt || Number(cnt) <= 0) return;
     const s = summonsData.find(x=> x && x.id===id) || summonsData.find(x=> x && x.name===id);
     const display = (s && s.name) ? s.name : id;
     summonNameCounts[display] = (summonNameCounts[display] || 0) + (cnt||0);
   });
-  container.appendChild(el('h3',{class:'section-title'},['Summons']));
-  container.appendChild(kvList(summonNameCounts));
+  if(Object.keys(summonNameCounts).length > 0){
+    container.appendChild(el('h3',{class:'section-title'},['Summons']));
+    container.appendChild(kvList(summonNameCounts));
+  }
 
   const enemies = enemiesList;
   const defeatCounts = {};
