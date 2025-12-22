@@ -22,6 +22,13 @@ export function renderEnd(root, ctx){
   if(rs.diedTo){
     const diedName = (ctx.data && ctx.data.enemies) ? (ctx.data.enemies.find(e=>e.id===rs.diedTo)||{}).name || rs.diedTo : rs.diedTo;
     summary.appendChild(el('div',{class:'end-stat end-died'},['Died to: '+diedName]));
+    // show last combat history message (damage log) if provided in context
+    try{
+      const lastMsg = ctx.lastHistoryMessage || ctx.lastBattleMessage || null;
+      if(lastMsg){
+        summary.appendChild(el('div',{class:'end-stat end-last-msg'},['Last hit: '+lastMsg]));
+      }
+    }catch(e){ /* ignore */ }
   } else {
     summary.appendChild(el('div',{class:'end-stat end-survived'},['You survived the run']));
   }

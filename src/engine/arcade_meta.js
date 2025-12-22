@@ -7,7 +7,7 @@ export function createMeta(){
     totalIpEarned: 0,
     legendaryUnlocked: false,
     // enable debug UI when true
-    debugEnabled: false,
+    debugEnabled: true,
     partySlots: 3,
     // default owned starters for a fresh save
     ownedCards: ['meepo','cree_kid','erky_timbers'],
@@ -48,6 +48,12 @@ export function buyUpgrade(meta, upgrade){
   // prerequisite: AP5 requires AP4 first
   if(upgrade.id === 'ap_5'){
     if(!(meta.purchasedUpgrades && meta.purchasedUpgrades.includes('ap_4'))){
+      return { success:false, reason:'prereq' };
+    }
+  }
+  // Formation 3 requires Formation 2
+  if(upgrade.id === 'formation_3'){
+    if(!(meta.purchasedUpgrades && meta.purchasedUpgrades.includes('formation_2'))){
       return { success:false, reason:'prereq' };
     }
   }

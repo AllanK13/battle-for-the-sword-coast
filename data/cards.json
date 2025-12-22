@@ -25,12 +25,20 @@
     "hp": 3.0,
     "abilities": [
       {
-        "type": "Healer",
-        "ability": "Cure Wounds: Heal one creature for 1 HP",
-        "actionType": "heal",
+        "type": "DPS",
+        "ability": "Staff: 1 damage",
+        "actionType": "attack",
         "hitChance": 0.95,
         "critChance": 0.05,
-        "primary": true
+        "primary": false
+      },
+      {
+        "type": "Healer",
+        "ability": "Cure Wounds: Heal one creature for 1 HP",
+        "name": "Cure Wounds: Heal 1 HP",
+        "actionType": "heal",
+        "primary": true,
+        "requiresTarget": true
       }
     ],
     "tier": 1,
@@ -107,10 +115,18 @@
       {
         "type": "Support",
         "ability": "Help: Automatically targeted by next single target attack",
+        "name": "Help: Auto targeted",
         "actionType": "support",
+        "primary": true,
+        "requiresTarget": false
+      },
+      {
+        "type": "DPS",
+        "ability": "Dagger: 1 damage",
+        "actionType": "attack",
         "hitChance": 0.95,
         "critChance": 0.05,
-        "primary": true
+        "primary": false
       }
     ],
     "tier": 1,
@@ -127,10 +143,10 @@
       {
         "type": "Support",
         "ability": "Refresh Volo's power",
+        "name": "Refresh Volo's power",
         "actionType": "support",
-        "hitChance": 0.95,
-        "critChance": 0.05,
-        "primary": true
+        "primary": true,
+        "requiresTarget": false
       }
     ],
     "tier": 1,
@@ -187,10 +203,10 @@
       {
         "type": "Support",
         "ability": "Eventually assist: 6 damage after enemy turn",
+        "name": "Eventually assist: 6 damage",
         "actionType": "support",
-        "hitChance": 0.95,
-        "critChance": 0.05,
-        "primary": true
+        "primary": true,
+        "requiresTarget": false
       }
     ],
     "tier": 2,
@@ -206,10 +222,10 @@
     "abilities": [
       {
         "type": "DPS",
-        "ability": "Magic Missile: 6 damage",
+        "ability": "Magic Missile: 5 damage",
         "actionType": "attack",
-        "hitChance": 0.95,
-        "critChance": 0.05,
+        "hitChance": 1.00,
+        "critChance": 0.00,
         "primary": true
       }
     ],
@@ -226,10 +242,10 @@
     "abilities": [
       {
         "type": "DPS",
-        "ability": "Lightning Bolt: 6 damage",
+        "ability": "Lightning Bolt: 5 damage",
         "actionType": "attack",
-        "hitChance": 0.95,
-        "critChance": 0.05,
+        "hitChance": 1.00,
+        "critChance": 0.00,
         "primary": true
       }
     ],
@@ -247,10 +263,18 @@
       {
         "type": "Healer",
         "ability": "Cure Wounds (4th level): Heal one creature for 5 HP",
+        "name": "Cure Wounds: Heal 5 HP",
         "actionType": "heal",
+        "primary": true,
+        "requiresTarget": true
+      },
+      {
+        "type": "DPS",
+        "ability": "Staff: 3 damage",
+        "actionType": "attack",
         "hitChance": 0.95,
         "critChance": 0.05,
-        "primary": true
+        "primary": false
       }
     ],
     "tier": 2,
@@ -308,8 +332,8 @@
         "type": "DPS",
         "ability": "Blight: 6 damage",
         "actionType": "attack",
-        "hitChance": 0.95,
-        "critChance": 0.05,
+        "hitChance": 1.00,
+        "critChance": 0.00,
         "primary": true
       }
     ],
@@ -328,8 +352,8 @@
         "type": "DPS",
         "ability": "Wild Surge Bolt of Light: 6 damage",
         "actionType": "attack",
-        "hitChance": 0.95,
-        "critChance": 0.05,
+        "hitChance": 1.00,
+        "critChance": 0.00,
         "primary": true
       }
     ],
@@ -346,11 +370,19 @@
     "abilities": [
       {
         "type": "Support",
-        "ability": "Gaseous Form: Target avoids all damage for 1 turn",
+        "ability": "Gaseous Form: Target is invulnerable (ignores all damage) for 1 turn",
+        "name": "Gaseous Form: Invulnerable",
         "actionType": "support",
+        "primary": true,
+        "requiresTarget": true
+      },
+      {
+        "type": "DPS",
+        "ability": "Scimitar: 4 damage",
+        "actionType": "attack",
         "hitChance": 0.95,
         "critChance": 0.05,
-        "primary": true
+        "primary": false
       }
     ],
     "tier": 3,
@@ -367,10 +399,19 @@
       {
         "type": "Support",
         "ability": "Rally the Troops: Gain +1 AP",
+        "name": "Rally the Troops",
         "actionType": "support",
-        "hitChance": 0.95,
-        "critChance": 0.05,
-        "primary": true
+        "primary": true,
+        "cooldown": 3,
+        "requiresTarget": false
+      },
+      {
+        "type": "Support",
+        "ability": "Assist: Target gets +20% hit chance this turn",
+        "name": "Assist",
+        "actionType": "support",
+        "primary": false,
+        "requiresTarget": true
       }
     ],
     "tier": 3,
@@ -408,7 +449,7 @@
         "type": "DPS",
         "ability": "Great Weapon Master: 8 damage",
         "actionType": "attack",
-        "hitChance": 0.95,
+        "hitChance": 0.75,
         "critChance": 0.05,
         "primary": true
       }
@@ -461,16 +502,16 @@
   },
   {
     "name": "Br'er",
-    "type": "Suppor",
+    "type": "Support",
     "hp": 20.0,
     "abilities": [
       {
         "type": "Support",
         "ability": "Disarming attack: 5 damage, and next attack deals half damage",
+        "name": "Disarming attack: 5 damage",
         "actionType": "support",
-        "hitChance": 0.95,
-        "critChance": 0.05,
-        "primary": true
+        "primary": true,
+        "requiresTarget": false
       }
     ],
     "tier": 4,

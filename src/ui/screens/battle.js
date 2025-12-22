@@ -18,7 +18,7 @@ function slotNode(slotObj, idx, handlers={}, highlight=false, targetHighlight=fa
     return container;
   }
   // hero image tile (show current HP in the card stats) and temp HP badge
-  const opts = { currentHp: slotObj.hp, tempHp: slotObj.tempHp, hideSlot: true, hideCost: true };
+  const opts = { currentHp: slotObj.hp, tempHp: slotObj.tempHp, hideSlot: true, hideCost: true, hideAbilities: true };
   // if this hero is Griff and the encounter selected a variant, pass imageOverride
   try{
     const id = (slotObj.base && slotObj.base.id) ? slotObj.base.id : null;
@@ -42,32 +42,112 @@ function slotNode(slotObj, idx, handlers={}, highlight=false, targetHighlight=fa
       opts.imageOverride = './assets/griff' + v + '.png';
     }
   }catch(e){}
-  const tile = cardTile(slotObj.base, opts);
-  container.appendChild(tile);
-  // show a defend/shield badge when this hero is defending
-  if(slotObj.defending){
-    // ensure the container can host an absolute badge
-    container.style.position = 'relative';
-    const badge = el('div',{class:'defend-badge'},['💨']);
-    container.appendChild(badge);
-  }
-  if(slotObj.helped){
-    container.style.position = 'relative';
-    const helpBadge = el('div',{class:'help-badge'},['🕷️']);
-    container.appendChild(helpBadge);
-  }
-  const btns = el('div',{class:'row'});
-  // when a hero is in the slot, show the generic Action (could be attack/heal/etc.)
-  const act = el('button',{class:'btn slot-action'},['Action']);
-  if(handlers.ap !== undefined && handlers.ap < 1) act.setAttribute('disabled','');
-  act.addEventListener('click',(e)=>{ e.stopPropagation(); if(handlers.onAction) handlers.onAction(idx); });
-  btns.appendChild(act);
+  // build action buttons as the card footer so they sit close to the HP/stats
+  const btns = el('div',{class:'row card-footer'});
+  // when a hero is in the slot, show one button per defined ability (fallback to single generic Action)
+  try{
+    if(slotObj.base && Array.isArray(slotObj.base.abilities) && slotObj.base.abilities.length>0){
+      slotObj.base.abilities.forEach((a, ai)=>{
+        // Prefer the explicit ability `name` when present, otherwise fall back
+        // to the legacy `ability` text or a generic label.
+        const label = (a && a.name) ? a.name : ((a && a.ability) ? a.ability : ('Ability '+(ai+1)));
+        const b = el('button',{class:'btn slot-action ability-btn', 'data-ability-index': String(ai)},[ label ]);
+        // disable if not enough AP
+        if(handlers.ap !== undefined && handlers.ap < 1) b.setAttribute('disabled','');
+        // disable if ability is on cooldown (per-hero id)
+        try{
+          // ability cooldowns are tracked per-cardId+ability index ("<cardId>:ability<index>")
+          const inst = (slotObj && slotObj.cardId) ? slotObj.cardId : String(idx);
+          const key = String(inst) + ':ability' + String(ai);
+          const cd = (ctx && ctx.encounter && ctx.encounter.abilityCooldowns) ? Number(ctx.encounter.abilityCooldowns[key] || 0) : 0;
+          if(cd > 0){
+            b.setAttribute('disabled','');
+            b.setAttribute('title', 'Cooldown: '+String(cd)+' turns');
+            try{
+              const badge = el('span',{class:'ability-cooldown-badge'},[ String(cd) ]);
+              b.appendChild(badge);
+            }catch(e){}
+          }
+        }catch(e){}
+        b.addEventListener('click',(e)=>{ e.stopPropagation(); if(handlers.onAction) handlers.onAction(idx, ai); });
+        btns.appendChild(b);
+      });
+    } else {
+      const act = el('button',{class:'btn slot-action'},['Action']);
+      if(handlers.ap !== undefined && handlers.ap < 1) act.setAttribute('disabled','');
+      act.addEventListener('click',(e)=>{ e.stopPropagation(); if(handlers.onAction) handlers.onAction(idx); });
+      btns.appendChild(act);
+    }
+  }catch(e){}
   // also provide a Dodge button for placed characters
   const defend = el('button',{class:'btn slot-action dodge-btn'},['Dodge']);
   if(handlers.ap !== undefined && handlers.ap < 1) defend.setAttribute('disabled','');
   defend.addEventListener('click',(e)=>{ e.stopPropagation(); if(handlers.onDefend) handlers.onDefend(idx); });
   btns.appendChild(defend);
-  container.appendChild(btns);
+  // pass the built footer into the card tile so it anchors directly inside the card
+  opts.footer = btns;
+  const tile = cardTile(slotObj.base, opts);
+  // ensure tile can host absolute-positioned overlays
+  try{ tile.style.position = tile.style.position || 'relative'; }catch(e){}
+  container.appendChild(tile);
+  // Ordered status overlay: if `statusIcons` exists, render them left-to-right
+  try{
+    const icons = slotObj.statusIcons || [];
+    if(icons && icons.length > 0){
+      // Render overlays inside the card tile so they float over the image
+      const overlay = el('div',{class:'status-overlay'} ,[]);
+      icons.forEach(ic=>{
+        try{
+          const id = ic && ic.id ? String(ic.id) : '?';
+          const emoji = (id === 'assist') ? '🎯' : (id === 'defend') ? '💨' : (id === 'help') ? '🕷️' : (id === 'protected') ? '🌪' : (id === 'lumalia') ? '🕓' : id[0];
+          // Build a human-readable tooltip title and aria-label
+          let titleText = '';
+          switch(id){
+            case 'assist':
+              titleText = 'Assist — +' + Math.round((ic && ic.amount? ic.amount*100 : 20)) + '% hit';
+              break;
+            case 'defend':
+              titleText = 'Defend — Dodge (increased chance to avoid next attack)';
+              break;
+            case 'help':
+              titleText = 'Help — Preferred target (enemy more likely to attack)';
+              break;
+            case 'protected':
+              titleText = 'Gaseous Form — Invulnerable' + (ic && ic.turns ? (' ('+ic.turns+' turn'+(ic.turns>1?'s':'')+')') : '');
+              break;
+            case 'lumalia':
+              titleText = 'Lumalia — Pending ' + (ic && ic.dmg ? ic.dmg : '') + ' damage';
+              break;
+            default:
+              titleText = (id.charAt(0).toUpperCase()+id.slice(1)) + (ic && ic.source ? (' ('+ic.source+')') : '');
+              break;
+          }
+          const icEl = el('div',{class:'status-icon', title: titleText, 'aria-label': titleText},[ emoji ]);
+          overlay.appendChild(icEl);
+        }catch(e){}
+      });
+      tile.appendChild(overlay);
+    }
+  }catch(e){}
+  // show a defend/shield badge when this hero is defending
+  if(!(slotObj.statusIcons && slotObj.statusIcons.length>0)){
+    if(slotObj.defending){
+      const badge = el('div',{class:'defend-badge'},['💨']);
+      try{ tile.appendChild(badge); }catch(e){ container.appendChild(badge); }
+    }
+    if(slotObj.helped){
+      const helpBadge = el('div',{class:'help-badge'},['🕷️']);
+      try{ tile.appendChild(helpBadge); }catch(e){ container.appendChild(helpBadge); }
+    }
+    // show an assist/hit-bonus badge when this hero received an accuracy buff
+    try{
+      if(slotObj.hitBonus && slotObj.hitBonus > 0){
+        const assistBadge = el('div',{class:'assist-badge'},['🎯']);
+        try{ tile.appendChild(assistBadge); }catch(e){ container.appendChild(assistBadge); }
+      }
+    }catch(e){}
+  }
+  
   container.addEventListener('click',()=>{ if(handlers.onSelect) handlers.onSelect(idx); else if(handlers.onClick) handlers.onClick(idx); });
   return container;
 }
@@ -106,24 +186,19 @@ export function renderBattle(root, ctx){
   endRunBtn.addEventListener('click',()=>{
     const ok = window.confirm('Give up? This will forfeit current progress and return to the start screen.');
     if(!ok) return;
-    // disable button to avoid re-entrancy
     try{ endRunBtn.setAttribute('disabled',''); }catch(e){}
-    // defensively clear per-run usage and persist
     try{ if(ctx && ctx.meta) { ctx.meta.summonUsage = {}; saveMeta(ctx.meta); } }catch(e){ console.debug('GiveUp: saveMeta failed', e); }
-    // attempt immediate navigation, then fall back to forced page load if that fails
     try{
-      try{ navigate('arcade_start'); console.debug('GiveUp: navigate(arcade_start) invoked'); }
-      catch(e){ console.debug('GiveUp: navigate threw', e); }
-      // schedule forced navigation fallbacks in case route navigation doesn't take effect
-      setTimeout(()=>{
-        try{ window.location.assign(window.location.pathname || '/'); console.debug('GiveUp: forced assign to pathname'); }
-        catch(e){ console.debug('GiveUp: forced assign failed', e); }
-      }, 100);
-      setTimeout(()=>{
-        try{ window.location.reload(); console.debug('GiveUp: forced reload'); }
-        catch(e){ console.debug('GiveUp: reload failed', e); }
-      }, 500);
-    }catch(e){ console.debug('GiveUp: unexpected error', e); }
+      // Prevent any pending timeouts or callbacks from re-rendering the battle
+      try{ if(ctx){ ctx.onStateChange = ()=>{}; ctx.setMessage = ()=>{}; } }catch(e){}
+      navigate('arcade_start');
+      console.debug('GiveUp: navigated to arcade_start');
+      return;
+    }catch(e){
+      console.debug('GiveUp: navigate threw', e);
+    }
+    // Fallback: if navigate isn't available for some reason, perform a hard redirect
+    try{ window.location.assign(window.location.pathname || '/'); }catch(e){ console.debug('GiveUp: forced assign failed', e); }
   });
   if(typeof ctx._lastAp === 'undefined') ctx._lastAp = ctx.encounter.ap;
   if(ctx._lastAp > ctx.encounter.ap){
@@ -214,49 +289,10 @@ export function renderBattle(root, ctx){
   scaleWrap.appendChild(panel);
   root.appendChild(scaleWrap);
 
-  // responsive scaling: compute a scale factor and set CSS variable `--ui-scale` on :root
+  // Disable automatic UI scaling for the battle screen: keep fixed scale
   (function setupScale(){
     if(ctx._scaleSetup) return;
-    // Throttle updates and only apply when change is noticeable to avoid
-    // rapid tiny adjustments while scrolling on mobile which causes jitter.
-    let rafId = null;
-    let lastScale = null;
-    const applyScale = (s)=>{
-      lastScale = s;
-      document.documentElement.style.setProperty('--ui-scale', String(s));
-    };
-
-    const computeAndMaybeApply = ()=>{
-      // remove listener when panel is no longer in the DOM
-      if(!panel.isConnected){ window.removeEventListener('resize', schedule); window.removeEventListener('scroll', schedule); window.removeEventListener('orientationchange', schedule); return; }
-      try{
-        const container = root;
-        const panelRect = panel.getBoundingClientRect();
-        const pw = panelRect.width || panel.offsetWidth || 1100;
-        const ph = panelRect.height || panel.offsetHeight || 800;
-        const cw = container.clientWidth || window.innerWidth;
-        const ch = container.clientHeight || window.innerHeight;
-        let scale = Math.min(cw / pw, ch / ph, 1);
-        if(!isFinite(scale) || scale <= 0) scale = 1;
-        // avoid becoming too tiny; clamp to a sensible minimum
-        scale = Math.max(0.5, scale);
-        // only apply if change is larger than threshold to prevent jitter
-        if(lastScale === null || Math.abs(scale - lastScale) > 0.03){
-          applyScale(scale);
-        }
-      }catch(e){ /* ignore measurement errors */ }
-    };
-
-    const schedule = ()=>{
-      if(rafId) cancelAnimationFrame(rafId);
-      rafId = requestAnimationFrame(()=>{ rafId = null; computeAndMaybeApply(); });
-    };
-
-    window.addEventListener('resize', schedule);
-    window.addEventListener('scroll', schedule, { passive:true });
-    window.addEventListener('orientationchange', schedule);
-    // run after layout so measurements are meaningful
-    setTimeout(schedule, 0);
+    try{ document.documentElement.style.setProperty('--ui-scale', '1'); }catch(e){}
     ctx._scaleSetup = true;
   })();
 
@@ -338,6 +374,17 @@ export function renderBattle(root, ctx){
   } else {
     enemyCard.appendChild(hpLabel);
   }
+  // show a floating attack label when the enemy recently used a named attack
+  try{
+    if(ctx._lastEnemyAttack && ctx._lastEnemyAttack.name){
+      try{ enemyCard.style.position = enemyCard.style.position || 'relative'; }catch(e){}
+      const lbl = el('div',{class:'enemy-attack-label'},[ String(ctx._lastEnemyAttack.name) ]);
+      // position it relative to the image: top 10% of the card image area
+      enemyCard.appendChild(lbl);
+      // remove after animation completes to keep DOM clean
+      setTimeout(()=>{ try{ if(lbl && lbl.parentNode) lbl.parentNode.removeChild(lbl); }catch(e){} }, 1100);
+    }
+  }catch(e){ /* ignore overlay failures */ }
   // show stun badge bottom-right when enemy is stunned
   const stunned = ctx.encounter.enemy && (ctx.encounter.enemy.stunnedTurns || 0) > 0;
   if(stunned){
@@ -373,22 +420,44 @@ export function renderBattle(root, ctx){
     }
     const container = slotNode(ctx.encounter.playfield[i], i, {
       ap: ctx.encounter.ap,
-      onAction(idx){
+      onAction(idx, abilityIndex){
         if(ctx.encounter.ap < 1) { if(ctx.setMessage) ctx.setMessage('Not enough AP'); return; }
         // detect explicit actionType if present
         const hero = ctx.encounter.playfield[idx];
-        const primary = (hero && hero.base) ? ((Array.isArray(hero.base.abilities) && hero.base.abilities.length>0) ? (hero.base.abilities.find(a=>a.primary) || hero.base.abilities[0]) : null) : null;
+        let primary = null;
+        try{
+          if(typeof abilityIndex === 'number' && hero && hero.base && Array.isArray(hero.base.abilities) && hero.base.abilities[abilityIndex]){
+            primary = hero.base.abilities[abilityIndex];
+          } else if(hero && hero.base && Array.isArray(hero.base.abilities) && hero.base.abilities.length>0){
+            primary = hero.base.abilities.find(a=>a.primary) || hero.base.abilities[0];
+          } else {
+            primary = null;
+          }
+        }catch(e){ primary = null; }
         const actionType = (primary && primary.actionType) ? primary.actionType : (hero && hero.base && hero.base.actionType) ? hero.base.actionType : null;
         if(actionType === 'support'){
-          // Willis requires selecting a target to protect
+          // Determine if this support ability requires selecting a target
+          // Prefer an explicit `requiresTarget` flag on the ability data when present
+          let abilityText = '';
+          try{ abilityText = (primary && (primary.ability || primary.name)) ? String(primary.ability || primary.name).toLowerCase() : ''; }catch(e){}
+          let needsTarget = false;
+          try{ if(primary && typeof primary.requiresTarget !== 'undefined'){ needsTarget = !!primary.requiresTarget; } else { needsTarget = /target|one target|select|ally|assist|click a space/i.test(abilityText); } }catch(e){ needsTarget = /target|one target|select|ally|assist|click a space/i.test(abilityText); }
+          // Willis requires selecting a target to protect (explicit special-case)
           if(hero && hero.base && hero.base.id === 'willis'){
-            ctx.pendingAction = { type: 'willis', from: idx };
+            ctx.pendingAction = { type: 'willis', from: idx, abilityIndex };
             if(ctx.setMessage) ctx.setMessage('Click a space to select a target to protect');
             ctx.onStateChange();
             return;
           }
+          // If this support ability needs a target (e.g., Scout's Assist), set pendingAction
+          if(needsTarget){
+            ctx.pendingAction = { type: 'support_target', from: idx, abilityIndex };
+            if(ctx.setMessage) ctx.setMessage('Click a space to select a target');
+            ctx.onStateChange();
+            return;
+          }
           // immediate apply support (e.g., Piter's Help or Shalendra)
-          const res = ctx.playHeroAction(idx);
+          const res = ctx.playHeroAction(idx, null, abilityIndex);
           if(!res.success){ if(ctx.setMessage) ctx.setMessage(res.reason||'Action failed'); }
           ctx.onStateChange();
           return;
@@ -399,12 +468,12 @@ export function renderBattle(root, ctx){
         const needsTarget = isHeal && /one target|one creature|target|other|ally/i.test(ability);
         if(needsTarget){
           // set pendingAction so the next space click becomes the heal target
-          ctx.pendingAction = { type:'heal', from: idx };
+          ctx.pendingAction = { type:'heal', from: idx, abilityIndex };
           if(ctx.setMessage) ctx.setMessage('Click a space to heal');
           ctx.onStateChange();
           return;
         }
-        ctx.playHeroAction(idx);
+        ctx.playHeroAction(idx, null, abilityIndex);
         ctx.onStateChange();
       },
       highlight,
@@ -428,10 +497,10 @@ export function renderBattle(root, ctx){
           ctx.onStateChange();
           return;
         }
-        // if an action is pending (e.g., a heal), apply it to this target
-        if(ctx.pendingAction && ctx.pendingAction.type === 'heal'){
+        // if an action is pending (e.g., a heal or support-target), apply it to this target
+        if(ctx.pendingAction && (ctx.pendingAction.type === 'heal' || ctx.pendingAction.type === 'support_target')){
           const from = ctx.pendingAction.from;
-          const res = ctx.playHeroAction(from, idx);
+          const res = ctx.playHeroAction(from, idx, ctx.pendingAction.abilityIndex);
           if(!res.success) { if(ctx.setMessage) ctx.setMessage(res.reason||'failed'); }
           ctx.pendingAction = null;
           ctx.onStateChange();
@@ -440,7 +509,7 @@ export function renderBattle(root, ctx){
         // Willis protection target selection
         if(ctx.pendingAction && ctx.pendingAction.type === 'willis'){
           const from = ctx.pendingAction.from;
-          const res = ctx.playHeroAction(from, idx);
+          const res = ctx.playHeroAction(from, idx, ctx.pendingAction.abilityIndex);
           if(!res.success) { if(ctx.setMessage) ctx.setMessage(res.reason||'failed'); }
           ctx.pendingAction = null;
           ctx.onStateChange();
@@ -493,7 +562,7 @@ export function renderBattle(root, ctx){
         // handle pendingAction (heal) on click
         if(ctx.pendingAction && ctx.pendingAction.type === 'heal'){
           const from = ctx.pendingAction.from;
-          const res = ctx.playHeroAction(from, idx);
+          const res = ctx.playHeroAction(from, idx, ctx.pendingAction.abilityIndex);
           if(!res.success) { if(ctx.setMessage) ctx.setMessage(res.reason||'failed'); }
           ctx.pendingAction = null;
           ctx.onStateChange();
@@ -524,10 +593,12 @@ export function renderBattle(root, ctx){
     try{
       if(ctx && ctx.encounter && Array.isArray(ctx.encounter.pendingEffects)){
         const hasLum = ctx.encounter.pendingEffects.find(e => e && e.id === 'lumalia' && e.slot === i);
-        if(hasLum){
-          container.style.position = container.style.position || 'relative';
-          const lumBadge = el('div',{class:'lumalia-badge', title: 'Lumalia: delayed effect'},['🕓']);
-          container.appendChild(lumBadge);
+        if(!(ctx.encounter.playfield[i] && ctx.encounter.playfield[i].statusIcons && ctx.encounter.playfield[i].statusIcons.length>0)){
+          if(hasLum){
+            container.style.position = container.style.position || 'relative';
+            const lumBadge = el('div',{class:'lumalia-badge', title: 'Lumalia: delayed effect'},['🕓']);
+            container.appendChild(lumBadge);
+          }
         }
       }
     }catch(e){}
@@ -535,40 +606,145 @@ export function renderBattle(root, ctx){
     // Show Willis protection badge when a hero is currently protected
     try{
       const hero = ctx && ctx.encounter && ctx.encounter.playfield ? ctx.encounter.playfield[i] : null;
-      if(hero && hero.protected && hero.protected.source === 'willis'){
-        container.style.position = container.style.position || 'relative';
-        const wBadge = el('div',{class:'willis-badge', title: 'Protected (Willis)'},['🌪']);
-        container.appendChild(wBadge);
+      if(!(hero && hero.statusIcons && hero.statusIcons.length>0)){
+        if(hero && hero.protected && hero.protected.source === 'willis'){
+          container.style.position = container.style.position || 'relative';
+          const wBadge = el('div',{class:'willis-badge', title: 'Protected (Willis)'},['🌪']);
+          container.appendChild(wBadge);
+        }
       }
     }catch(e){}
 
-    // Disable Action button for heroes whose support was already used this round
+    // Show a backline shield indicator when Formation 3 is active so players
+    // can visually tell this slot won't be hit by AoE attacks.
+    try{
+      const formation = ctx && ctx.encounter && ctx.encounter.formation ? Number(ctx.encounter.formation) : 1;
+      if(formation === 3 && i === 2){
+        container.style.position = container.style.position || 'relative';
+        const shield = el('div',{class:'backline-shield', title: 'Backline: immune to AoE in this formation'},['🛡️']);
+        container.appendChild(shield);
+      }
+    }catch(e){}
+
+    // Disable support action buttons for heroes whose support was already used this round
     try{
       const hero = ctx && ctx.encounter && ctx.encounter.playfield ? ctx.encounter.playfield[i] : null;
-      const actionBtn = container.querySelector && container.querySelector('.slot-action');
-      if(actionBtn && hero && hero.base && hero.base.id && ctx.encounter && ctx.encounter.supportUsed && ctx.encounter.supportUsed[hero.base.id]){
-        actionBtn.setAttribute('disabled','');
+      const supportUsed = hero && hero.base && hero.base.id && ctx.encounter && ctx.encounter.supportUsed && ctx.encounter.supportUsed[hero.base.id];
+      if(supportUsed){
+        // disable any per-ability buttons that are support actions
+        const abilityBtns = container.querySelectorAll ? Array.from(container.querySelectorAll('.ability-btn')) : [];
+        abilityBtns.forEach(b => {
+          try{
+            const ai = Number(b.dataset && b.dataset.abilityIndex);
+            const a = (hero && hero.base && Array.isArray(hero.base.abilities)) ? hero.base.abilities[ai] : null;
+            if(a && String(a.actionType).toLowerCase() === 'support') b.setAttribute('disabled','');
+          }catch(e){}
+        });
+        // also handle legacy single Action button (no data-ability-index)
+        const genericBtns = container.querySelectorAll ? Array.from(container.querySelectorAll('.slot-action')) : [];
+        genericBtns.forEach(b => {
+          try{
+            if(typeof b.dataset === 'undefined' || typeof b.dataset.abilityIndex === 'undefined'){
+              const primary = (hero && hero.base) ? ((Array.isArray(hero.base.abilities) && hero.base.abilities.length>0) ? (hero.base.abilities.find(a=>a.primary) || hero.base.abilities[0]) : null) : null;
+              if(primary && String(primary.actionType).toLowerCase() === 'support') b.setAttribute('disabled','');
+            }
+          }catch(e){}
+        });
       }
     }catch(e){}
 
     return container;
   }
 
-  // place slot 3 (index 2) on the left, and slots 1 & 2 (indices 0 & 1) stacked to the right
-  const backSlotWrap = el('div',{class:'playfield-back'},[]);
-  backSlotWrap.appendChild(makeSlot(2));
+  // helper to populate playfield DOM based on formation value
+  function populatePlayfield(formation){
+    // clear existing content
+    playfield.innerHTML = '';
+    // recreate slots fresh so event handlers and highlights reflect current state
+    const s0 = makeSlot(0);
+    const s1 = makeSlot(1);
+    const s2 = makeSlot(2);
 
-  const frontCol = el('div',{class:'playfield-front'},[]);
-  frontCol.appendChild(makeSlot(0));
-  frontCol.appendChild(makeSlot(1));
+    if(Number(formation) === 2){
+      const leftStack = el('div',{class:'playfield-left'},[]);
+      leftStack.appendChild(s1);
+      leftStack.appendChild(s2);
+      const rightCenter = el('div',{class:'playfield-right'},[]);
+      rightCenter.appendChild(s0);
+      playfield.appendChild(leftStack);
+      playfield.appendChild(rightCenter);
+    } else if(Number(formation) === 3){
+      // Formation 3: line up slots horizontally with slot0 in front (nearest enemy),
+      // then slot1 behind, then slot2 furthest back.
+      const row = el('div',{class:'playfield-row'},[]);
+      // append in back-to-front order so z-index CSS can layer them correctly
+      row.appendChild(s2);
+      row.appendChild(s1);
+      row.appendChild(s0);
+      playfield.appendChild(row);
+    } else {
+      // default layout: back (slot 2) on left, front column contains slot 0 then slot 1
+      const backSlotWrap = el('div',{class:'playfield-back'},[]);
+      const frontCol = el('div',{class:'playfield-front'},[]);
+      backSlotWrap.appendChild(s2);
+      frontCol.appendChild(s0);
+      frontCol.appendChild(s1);
+      playfield.appendChild(backSlotWrap);
+      playfield.appendChild(frontCol);
+    }
+  }
 
-  // append back (left) then front (right) so slots 1/2 are visually to the right of slot 3
-  playfield.appendChild(backSlotWrap);
-  playfield.appendChild(frontCol);
+  // determine formation (may be set on ctx.encounter)
+  const initialFormation = (ctx && ctx.encounter && ctx.encounter.formation) ? Number(ctx.encounter.formation) : 1;
+  // ensure the playfield has the formation class so CSS rules apply
+  try{ if(playfield && typeof playfield.classList !== 'undefined'){ playfield.classList.add('formation-'+String(initialFormation)); } }catch(e){}
+  populatePlayfield(initialFormation);
   // append playfield (labeled 'Grid') left, enemy on the right inside a top row
   const topRow = el('div',{class:'battle-top'},[]);
   const leftCol = el('div',{},[]);
-  leftCol.appendChild(el('h3',{class:'slot-header'},['Party Formation']));
+  // Party formation header with selectable formation buttons (1 = default)
+  const formationCurrent = (ctx && ctx.encounter && ctx.encounter.formation) ? Number(ctx.encounter.formation) : 1;
+  const headerRow = el('div',{class:'slot-header-row', style:'display:flex;align-items:center;gap:12px;'},[]);
+  const title = el('h3',{class:'slot-header'},['Party Formation']);
+  const controls = el('div',{class:'formation-controls'},[]);
+  [1,2,3].forEach(n=>{
+    const btn = el('button',{class:'btn formation-btn' + (n===formationCurrent ? ' selected' : ''), 'data-formation': String(n)},[ String(n) ]);
+    // Determine ownership: formation 1 is always available; 2 and 3 require upgrades
+    let owned = true;
+    try{
+      const purchased = (ctx.meta && Array.isArray(ctx.meta.purchasedUpgrades)) ? ctx.meta.purchasedUpgrades : [];
+      if(n === 2) owned = purchased.includes('formation_2');
+      if(n === 3) owned = purchased.includes('formation_3');
+    }catch(e){ owned = true; }
+    if(!owned){ btn.setAttribute('disabled',''); btn.classList.add('locked'); btn.title = (n===2 ? 'Purchase in Metagame to unlock Formation 2' : 'Purchase in Metagame to unlock Formation 3 (requires Formation 2)'); }
+    btn.addEventListener('click', (ev)=>{
+      ev.stopPropagation();
+      // If locked, prompt the player to buy in the metagame store
+      if(btn.hasAttribute('disabled')){
+        try{ if(ctx.setMessage) ctx.setMessage('Purchase this formation in the Metagame store to unlock'); }catch(e){}
+        return;
+      }
+      const f = Number(btn.dataset.formation || n);
+      try{ if(!ctx.encounter) ctx.encounter = {}; ctx.encounter.formation = f; }catch(e){}
+      // update playfield class to reflect formation
+      try{
+        const pf = playfield;
+        if(pf){ pf.classList.remove('formation-1','formation-2','formation-3'); pf.classList.add('formation-'+String(f)); }
+        // rebuild the playfield DOM for the new formation
+        try{ if(typeof populatePlayfield === 'function') populatePlayfield(f); }catch(e){ console.debug('populatePlayfield failed', e); }
+      }catch(e){}
+      // update selected state of buttons
+      try{ Array.from(controls.querySelectorAll('.formation-btn')).forEach(b=>{ b.classList.toggle('selected', Number(b.dataset.formation)===f); }); }catch(e){}
+      if(typeof ctx.onStateChange === 'function') ctx.onStateChange();
+    });
+    controls.appendChild(btn);
+  });
+  headerRow.appendChild(title);
+  headerRow.appendChild(controls);
+  // place formation controls in the HUD below the AP display (before Give Up)
+  try{ if(hud && endRunBtn) hud.insertBefore(headerRow, endRunBtn); else leftCol.appendChild(headerRow); }catch(e){ try{ leftCol.appendChild(headerRow); }catch(e){} }
+  // ensure playfield gets initial formation class
+  try{ playfield.classList.add('formation-'+String(formationCurrent)); }catch(e){}
   leftCol.appendChild(playfield);
   topRow.appendChild(leftCol);
   topRow.appendChild(enemyArea);
@@ -589,12 +765,29 @@ export function renderBattle(root, ctx){
       ctx.onStateChange && ctx.onStateChange();
 
       const origCardEl = cardWrap.querySelector && cardWrap.querySelector('.card');
+      // Create a lightweight clone that only displays the card name while dragging
       const clone = origCardEl ? origCardEl.cloneNode(true) : document.createElement('div');
+      // Strip clone content down to the `.card-name` (or fallback to card.name)
+      try{
+        let nameEl = null;
+        if(origCardEl) nameEl = origCardEl.querySelector('.card-name') || origCardEl.querySelector('.summon-name');
+        clone.innerHTML = '';
+        if(nameEl){ clone.appendChild(nameEl.cloneNode(true)); }
+        else { clone.textContent = (card && (card.name || card.id)) ? (card.name || card.id) : 'Card'; }
+      }catch(e){ /* ignore name extraction failures */ }
+
       clone.style.position = 'fixed';
       clone.style.pointerEvents = 'none';
       clone.style.zIndex = '10050';
-      try{ clone.style.width = (origCardEl ? origCardEl.getBoundingClientRect().width : 120) + 'px'; }catch(e){}
+      // give the name-clone a compact size instead of copying the full card width
+      try{ clone.style.width = 'auto'; }catch(e){}
       clone.classList.add('dragging-card');
+      // Slightly compact visual style for the name-only clone
+      clone.style.padding = '6px 10px';
+      clone.style.background = 'linear-gradient(180deg, rgba(0,0,0,0.6), rgba(0,0,0,0.4))';
+      clone.style.borderRadius = '8px';
+      clone.style.color = '#fff';
+      clone.style.fontWeight = '800';
       document.body.appendChild(clone);
       try{ document.body.classList.add('dragging-active'); }catch(e){}
 
@@ -686,6 +879,23 @@ export function renderBattle(root, ctx){
     });
   handWrap.appendChild(handGrid);
   panel.appendChild(handWrap);
+
+  // Enforce fixed hand-card sizes inline as a fallback in case CSS rules
+  // from elsewhere still resize the hand when the window changes.
+  try{
+    document.querySelectorAll('.battle-panel .hand-wrap .card-wrap, .battle-panel .hand-wrap .card').forEach(el=>{
+      el.style.width = '198px';
+      el.style.minWidth = '198px';
+      el.style.maxWidth = '198px';
+      // Increase hand card height for better readability and spacing
+      el.style.height = '360px';
+      el.style.minHeight = '360px';
+      el.style.maxHeight = '360px';
+      el.style.flex = '0 0 auto';
+      el.style.boxSizing = 'border-box';
+      el.style.transition = 'none';
+    });
+  }catch(e){ /* defensive: ignore if DOM unavailable */ }
 
   const endTurn = el('button',{class:'btn end-turn-btn'},['End Turn']);
   endTurn.addEventListener('click',()=>{ ctx.endTurn(); ctx.onStateChange(); });

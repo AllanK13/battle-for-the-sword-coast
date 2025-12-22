@@ -84,6 +84,9 @@ export function renderUpgrades(root, ctx){
       if(n > 1 && !purchasedList.includes('slot_'+(n-1))){ prereqLocked = true; prereqMessage = 'Requires previous slot'; }
     } else if(u.id === 'ap_5' && !purchasedList.includes('ap_4')){
       prereqLocked = true; prereqMessage = 'Requires AP to 4';
+    } else if(u.id === 'formation_3' && !purchasedList.includes('formation_2')){
+      // Formation 3 requires Formation 2 to be purchased first
+      prereqLocked = true; prereqMessage = 'Requires Formation 2';
     } else if(u.id === 'slot_plus3' && !purchasedList.includes('slot_9')){
       prereqLocked = true; prereqMessage = 'Requires previous slot upgrades (Slot 9)';
     }

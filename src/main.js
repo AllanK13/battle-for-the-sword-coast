@@ -143,8 +143,8 @@ function createEncounterSession(enemyIndex, chosenIds, rng){
       }
       return res;
     },
-    playHeroAction(slot, targetIndex){
-      const res = handlePlayHeroAction(encounter, ctx, slot, targetIndex);
+    playHeroAction(slot, targetIndex, abilityIndex){
+      const res = handlePlayHeroAction(encounter, ctx, slot, targetIndex, abilityIndex);
       if(!res || !res.success){ if(ctx.setMessage) ctx.setMessage((res && res.reason) ? res.reason : 'Action failed'); }
       return res;
     },
@@ -253,6 +253,17 @@ function createEncounterSession(enemyIndex, chosenIds, rng){
           }
         }catch(e){}
       }
+      // expose the enemy's last named attack for UI overlays (floating label)
+      try{
+        if(res && Array.isArray(res.events)){
+          const atkEv = res.events.find(ev => ev && ev.attackName);
+          if(atkEv && atkEv.attackName){
+            ctx._lastEnemyAttack = { name: String(atkEv.attackName), ts: Date.now() };
+            // clear after 1s and trigger a re-render
+            setTimeout(()=>{ try{ if(ctx._lastEnemyAttack && ctx._lastEnemyAttack.name === atkEv.attackName){ delete ctx._lastEnemyAttack; if(typeof ctx.onStateChange === 'function') ctx.onStateChange(); } }catch(e){} }, 1000);
+          }
+        }
+      }catch(e){}
       if(messages.length) ctx.setMessage(messages.join('\n'), 1000); // 1 second for enemy actions
       if(finished === 'player'){
         // Player defeated the enemy — show an encounter-end screen summarizing the kill and IP reward
@@ -356,7 +367,10 @@ function createEncounterSession(enemyIndex, chosenIds, rng){
           }
           saveMeta(meta);
         }catch(e){}
-        const endCtx = { data, runSummary, vInterest, onRestart: ()=>{ try{ meta.summonUsage = {}; saveMeta(meta); }catch(e){}; navigate('arcade_start'); } };
+        // capture the last battle history message (if any) so the end screen
+        // can show what dealt the killing blow
+        const lastHistoryMessage = (ctx && Array.isArray(ctx.messageHistory) && ctx.messageHistory.length>0) ? ctx.messageHistory[0].text : null;
+        const endCtx = { data, runSummary, vInterest, lastHistoryMessage, onRestart: ()=>{ try{ meta.summonUsage = {}; saveMeta(meta); }catch(e){}; navigate('arcade_start'); } };
         // prevent any pending timeouts or future onStateChange calls from re-rendering the battle
         ctx.onStateChange = ()=>{};
         ctx.setMessage = ()=>{};        
@@ -372,8 +386,8 @@ function createEncounterSession(enemyIndex, chosenIds, rng){
 }
 
 // Shared handler for hero actions (consolidates SFX + message logic)
-function handlePlayHeroAction(encounter, ctx, slot, targetIndex){
-  const res = playHeroAction(encounter, slot, targetIndex);
+function handlePlayHeroAction(encounter, ctx, slot, targetIndex, abilityIndex){
+  const res = playHeroAction(encounter, slot, targetIndex, abilityIndex);
   if(!res || !res.success){ if(ctx.setMessage) ctx.setMessage((res && res.reason) ? res.reason : 'Action failed'); return res; }
   if(res.type === 'attack'){
     // include hero & enemy names in the attack message
@@ -517,7 +531,7 @@ function appStart(){
         // simple feedback via alert if available
         if(typeof window !== 'undefined' && window.alert){
           if(res && res.success) window.alert('Purchased '+(u.upgrade||u.id));
-          else if(res && res.reason === 'prereq') window.alert('Cannot purchase: requires Increase AP to 4 first');
+          else if(res && res.reason === 'prereq') window.alert('Cannot purchase: prerequisite not met');
           else window.alert('Cannot purchase: insufficient IP');
         }
         // re-render the upgrades screen

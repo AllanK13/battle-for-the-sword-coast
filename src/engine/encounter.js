@@ -17,8 +17,11 @@ export function startEncounter(enemyDef, deck, rng, opts={}){
     summonUsed: {},
     summonCooldowns: {}
     ,supportUsed: {}
+    ,abilityCooldowns: {}
     ,pendingEffects: []
   };
+  // Next unique instance id for placed heroes (used to key per-ability cooldowns)
+  state._nextHeroInstanceId = 1;
   // Choose a random Griff image variant for this encounter (if needed by UI).
   try{
     const v = Math.floor(Math.random() * 7) + 1;
@@ -31,6 +34,28 @@ export function startEncounter(enemyDef, deck, rng, opts={}){
 }
 
 function _selectSingleTargetIndex(state, rng){
+  // If special formations are active, handle their custom single-target
+  // prioritization rules before falling back to general logic.
+  try{
+    const f = Number(state.formation);
+    // Formation 3: always prefer slot 0, then slot 1, then slot 2.
+    if(f === 3){
+      if(state.playfield[0]) return 0;
+      if(state.playfield[1]) return 1;
+      if(state.playfield[2]) return 2;
+      return -1;
+    }
+    // Formation 2: prefer slot 0; otherwise choose randomly between 1 and 2.
+    if(f === 2){
+      if(state.playfield[0]) return 0;
+      const choices = [1,2].filter(i => state.playfield[i]);
+      if(choices.length>0){
+        return rng ? choices[rng.int(choices.length)] : choices[Math.floor(Math.random()*choices.length)];
+      }
+      return -1;
+    }
+  }catch(e){}
+
   // prefer a hero marked by support 'Help'
   const helpedIndex = state.playfield.findIndex(h => h && h.helped);
   if(helpedIndex !== -1) return helpedIndex;
@@ -134,8 +159,11 @@ function resolveSingleTargetAttack(state, dmg, attackIndex, attackName){
         return events;
       }
 
-      // If defending, take half damage (rounded up) instead of negating it
-      let remaining = h.defending ? Math.ceil(dmg/2) : dmg;
+      // Defending (Dodge) is handled at enemy attack resolution: single-target
+      // defending now grants a 50% chance for the attack to miss. Here we
+      // apply the damage passed in (defending does NOT halve single-target
+      // damage any longer).
+      let remaining = dmg;
       let tempTaken = 0;
       if(h.tempHp && h.tempHp>0){ const take = Math.min(h.tempHp, remaining); h.tempHp -= take; tempTaken = take; remaining -= take; }
       let hpTaken = 0;
@@ -173,6 +201,9 @@ function resolveMultiAttack(state, dmg, attackIndex, attackName){
 function resolveAoEAttack(state, baseDmg, attackIndex, attackName){
   const events = [];
   for(let i=0;i<state.playfield.length;i++){
+    // If formation 3 is active, the backline slot (index 2) is specially
+    // positioned and should be immune to AoE targeting by design — skip it.
+    try{ if(Number(state.formation) === 3 && i === 2) continue; }catch(e){}
     const h = state.playfield[i];
     if(h){
       // If this hero is protected (e.g., Willis), they take no damage from AOE
@@ -216,7 +247,8 @@ export function placeHero(state, slotIndex, card){
   if(card == null) return { success:false, reason:'no card' };
   if(typeof slotIndex !== 'number' || slotIndex < 0 || slotIndex >= state.playfield.length) return { success:false, reason:'invalid slot' };
   if(state.playfield[slotIndex] !== null) return { success:false, reason:'slot occupied' };
-  const hero = { cardId: card.id, hp: card.hp, base: card, tempHp: 0 };
+  const hero = { cardId: card.id, hp: card.hp, base: card, tempHp: 0, statusIcons: [] };
+  try{ if(typeof state._nextHeroInstanceId === 'undefined') state._nextHeroInstanceId = 1; hero._instanceId = 'h'+String(state._nextHeroInstanceId++); }catch(e){}
   state.playfield[slotIndex] = hero;
   // remove one copy from hand if present
   try{
@@ -228,15 +260,25 @@ export function placeHero(state, slotIndex, card){
   return { success:true, slot: slotIndex };
 }
 
-export function playHeroAttack(state, slotIndex){
+export function playHeroAttack(state, slotIndex, abilityIndex=null){
   if(state.ap <= 0) return { success:false, reason:'no AP' };
   const hero = state.playfield[slotIndex];
   if(!hero) return { success:false, reason:'no hero' };
-  const primary = getPrimaryAbility(hero.base);
+  // prefer an explicitly-selected ability when provided
+  let primary = null;
+  try{
+    if(typeof abilityIndex === 'number' && hero && hero.base && Array.isArray(hero.base.abilities) && hero.base.abilities[abilityIndex]){
+      primary = hero.base.abilities[abilityIndex];
+    } else {
+      primary = getPrimaryAbility(hero.base);
+    }
+  }catch(e){ primary = getPrimaryAbility(hero.base); }
   const baseDmg = parseDamageFromAbility(primary);
   const mult = state.nextAttackMultiplier || 1;
   // read optional hit/crit chances from the hero card metadata
-  const hitChance = (primary && typeof primary.hitChance === 'number') ? primary.hitChance : 1.0;
+  let hitChance = (primary && typeof primary.hitChance === 'number') ? primary.hitChance : 1.0;
+  // apply any per-hero temporary hit chance bonuses (from Assist)
+  try{ if(hero && typeof hero.hitBonus === 'number' && hero.hitBonus > 0){ hitChance = Math.min(1.0, hitChance + hero.hitBonus); } }catch(e){}
   const critChance = (primary && typeof primary.critChance === 'number') ? primary.critChance : 0.0;
   // consume AP for the attack attempt
   state.ap -= 1;
@@ -254,12 +296,20 @@ export function playHeroAttack(state, slotIndex){
   return { success:true, type: 'attack', dmg, enemyHp: state.enemy.hp, crit: isCrit, baseDmg };
 }
 
-export function playHeroAction(state, slotIndex, targetIndex=null){
+export function playHeroAction(state, slotIndex, targetIndex=null, abilityIndex=null){
   // generic action: attack or heal based on card ability text
   if(state.ap <= 0) return { success:false, reason:'no AP' };
   const hero = state.playfield[slotIndex];
   if(!hero) return { success:false, reason:'no hero' };
-  const primary = getPrimaryAbility(hero.base);
+  // prefer an explicitly-selected ability when provided
+  let primary = null;
+  try{
+    if(typeof abilityIndex === 'number' && hero && hero.base && Array.isArray(hero.base.abilities) && hero.base.abilities[abilityIndex]){
+      primary = hero.base.abilities[abilityIndex];
+    } else {
+      primary = getPrimaryAbility(hero.base);
+    }
+  }catch(e){ primary = getPrimaryAbility(hero.base); }
   const ability = (primary && primary.ability) ? String(primary.ability).toLowerCase() : '';
   const amount = parseDamageFromAbility(primary);
   // normalize id for legendaries that may not have `base`
@@ -273,13 +323,13 @@ export function playHeroAction(state, slotIndex, targetIndex=null){
   }
   // If this is a legendary placed card without `base`, some supports rely on card id.
   // Force support action for known support legendaries (e.g., bjurganmyr).
-  const supportLegendaries = ['bjurganmyr','miley','kiefer'];
+  const supportLegendaries = ['bjurganmyr','miley'];
   if(hid && supportLegendaries.indexOf(hid) !== -1){
     actionType = 'support';
   }
   // DPS: delegate to the existing attack function which handles AP and multiplier
   if(actionType === 'dps' || actionType === 'attack'){
-    return playHeroAttack(state, slotIndex);
+    return playHeroAttack(state, slotIndex, abilityIndex);
   }
   // Healer: use the centralized resolveHeal helper (handles party or single-target heals)
   if(actionType === 'healer' || actionType === 'heal'){
@@ -312,6 +362,8 @@ export function playHeroAction(state, slotIndex, targetIndex=null){
     if (hid === 'piter'){
       hero.helped = true;
       hero.helpSource = 'piter';
+      // record status icon (order preserved)
+      try{ hero.statusIcons = hero.statusIcons || []; hero.statusIcons.push({ id:'help', source:'piter', ts: Date.now() }); }catch(e){}
       state.ap -= 1;
       state.supportUsed['piter'] = true;
       return { success:true, type:'support', slot: slotIndex, id:'piter' };
@@ -321,17 +373,75 @@ export function playHeroAction(state, slotIndex, targetIndex=null){
     if (hid === 'lumalia'){
       state.pendingEffects = state.pendingEffects || [];
       state.pendingEffects.push({ type: 'delayedDamage', id: 'lumalia', slot: slotIndex, dmg: 6, trigger: 'afterEnemy', sourceName: hname });
+      // add status icon on the slot so UI can show pending effect
+      try{ const h = state.playfield[slotIndex]; if(h){ h.statusIcons = h.statusIcons || []; h.statusIcons.push({ id:'lumalia', source:'lumalia', ts: Date.now(), dmg:6 }); } }catch(e){}
       state.ap -= 1;
       state.supportUsed['lumalia'] = true;
       return { success:true, type:'support', slot: slotIndex, id:'lumalia', scheduled: true };
     }
 
-    // Scout: immediately grant the player +1 AP (free), once per round
+    // Scout: supports include Rally (grant AP) and Assist (buff ally hit chance)
     if (hid === 'scout'){
       state.supportUsed = state.supportUsed || {};
-      state.ap = (state.ap || 0) + 1;
-      state.supportUsed['scout'] = true;
-      return { success:true, type:'support', slot: slotIndex, id:'scout', apGranted: 1 };
+      state.abilityCooldowns = state.abilityCooldowns || {};
+      // Determine which ability was chosen (by index) or use primary
+      let chosenAbility = null;
+      try{
+        if(typeof abilityIndex === 'number' && hero && hero.base && Array.isArray(hero.base.abilities) && hero.base.abilities[abilityIndex]){
+          chosenAbility = hero.base.abilities[abilityIndex];
+        } else {
+          chosenAbility = getPrimaryAbility(hero.base);
+        }
+      }catch(e){ chosenAbility = getPrimaryAbility(hero.base); }
+      const aname = (chosenAbility && chosenAbility.name) ? String(chosenAbility.name).toLowerCase() : ((chosenAbility && chosenAbility.ability) ? String(chosenAbility.ability).toLowerCase() : '');
+      // Build a per-slot+ability key so cooldowns are per-ability, per-instance
+      let aiKey = 'primary';
+      try{
+        if(typeof abilityIndex === 'number') aiKey = String(abilityIndex);
+        else if(hero && hero.base && Array.isArray(hero.base.abilities)){
+          const idx = hero.base.abilities.indexOf(chosenAbility);
+          if(idx !== -1) aiKey = String(idx);
+        }
+      }catch(e){}
+      // Use cardId so cooldowns persist by hero identity across replacements
+      const inst = (hero && hero.cardId) ? hero.cardId : String(slotIndex);
+      const abilityKey = String(inst) + ':ability' + String(aiKey);
+      // Rally: grant +1 AP, has a 3-turn cooldown (per-ability)
+      if(/rally/.test(aname)){
+        // check cooldown for this specific ability instance
+        if(state.abilityCooldowns[abilityKey] && state.abilityCooldowns[abilityKey] > 0){ return { success:false, reason:'cooldown' }; }
+        state.ap = (state.ap || 0) + 1;
+        state.supportUsed['scout'] = true;
+        // read cooldown from ability data if present, otherwise default to 3
+        const cdVal = (chosenAbility && typeof chosenAbility.cooldown === 'number') ? Number(chosenAbility.cooldown) : 3;
+        state.abilityCooldowns[abilityKey] = cdVal;
+        return { success:true, type:'support', slot: slotIndex, id:'scout', apGranted: 1, cooldown:cdVal, abilityKey };
+      }
+      // Assist: buff a target's hit chance by +0.2 for the remainder of the turn
+      if(/assist/.test(aname)){
+        if(typeof targetIndex !== 'number' || !state.playfield[targetIndex]){
+          return { success:false, reason:'target_required' };
+        }
+        const tgt = state.playfield[targetIndex];
+        // apply hit chance bonus (stacking if already present)
+          tgt.hitBonus = (tgt.hitBonus || 0) + 0.20;
+          // record assist icon on the target (preserve order)
+          try{ tgt.statusIcons = tgt.statusIcons || []; tgt.statusIcons.push({ id:'assist', source:'scout', ts: Date.now(), amount: 0.20 }); }catch(e){}
+          state.ap -= 1;
+          state.supportUsed['scout'] = true;
+        // set cooldown for this assist ability if defined on ability data
+        const cdVal = (chosenAbility && typeof chosenAbility.cooldown === 'number') ? Number(chosenAbility.cooldown) : 0;
+        if(cdVal > 0){ state.abilityCooldowns[abilityKey] = cdVal; }
+        return { success:true, type:'support', slot: slotIndex, id:'scout', target: targetIndex, hitBonus: 0.20, abilityKey };
+      }
+      // fallback: treat as Rally if unknown
+      if(!aname){
+        if(state.abilityCooldowns[abilityKey] && state.abilityCooldowns[abilityKey] > 0){ return { success:false, reason:'cooldown' }; }
+        state.ap = (state.ap || 0) + 1;
+        state.supportUsed['scout'] = true;
+        state.abilityCooldowns[abilityKey] = 3;
+        return { success:true, type:'support', slot: slotIndex, id:'scout', apGranted: 1, cooldown:3, abilityKey };
+      }
     }
 
     // Willis: protect a target from all damage for 1 turn
@@ -341,6 +451,8 @@ export function playHeroAction(state, slotIndex, targetIndex=null){
       }
       const tgt = state.playfield[targetIndex];
       tgt.protected = { turns: 1, source: 'willis' };
+      // add protection icon
+      try{ tgt.statusIcons = tgt.statusIcons || []; tgt.statusIcons.push({ id:'protected', source:'willis', ts: Date.now(), turns:1 }); }catch(e){}
       state.ap -= 1;
       state.supportUsed['willis'] = true;
       return { success:true, type:'support', slot: slotIndex, id:'willis', target: targetIndex };
@@ -407,6 +519,7 @@ export function defendHero(state, slotIndex){
   if(!hero) return { success:false, reason:'no hero' };
   // mark hero as defending for the upcoming enemy action
   hero.defending = true;
+  try{ hero.statusIcons = hero.statusIcons || []; hero.statusIcons.push({ id:'defend', source:'player', ts: Date.now() }); }catch(e){}
   state.ap -= 1;
   return { success:true };
 }
@@ -431,7 +544,9 @@ export function replaceHero(state, slotIndex, newCard){
       }
     }catch(e){ /* ignore */ }
   }
-  state.playfield[slotIndex] = { cardId: newCard.id, hp: newCard.hp, base: newCard };
+  const repl = { cardId: newCard.id, hp: newCard.hp, base: newCard, statusIcons: [] };
+  try{ if(typeof state._nextHeroInstanceId === 'undefined') state._nextHeroInstanceId = 1; repl._instanceId = 'h'+String(state._nextHeroInstanceId++); }catch(e){}
+  state.playfield[slotIndex] = repl;
   state.ap -= 1;
   return { success:true };
 }
@@ -452,9 +567,13 @@ export function enemyAct(state){
     Object.keys(state.summonCooldowns).forEach(k=>{
       if(state.summonCooldowns[k] > 0) state.summonCooldowns[k]--;
     });
+    // decrement ability cooldowns
+    try{ Object.keys(state.abilityCooldowns||{}).forEach(k=>{ if(state.abilityCooldowns[k] > 0) state.abilityCooldowns[k]--; }); }catch(e){}
     // clear defending/helped markers so heroes recover from defend/help states
     state.playfield.forEach(h=>{ if(h && h.defending) h.defending = false; });
     state.playfield.forEach(h=>{ if(h && h.helped) h.helped = false; });
+    // clear any temporary hit chance bonuses applied for the player's turn
+    state.playfield.forEach(h=>{ if(h && h.hitBonus) { try{ h.hitBonus = 0; }catch(e){} } });
     // Process any pendingEffects that should trigger after the enemy acted
     // and collect UI events so callers see the damage produced while stunned.
     const stunnedEvents = [];
@@ -484,6 +603,26 @@ export function enemyAct(state){
         if(!h.protected || h.protected.turns <= 0){ try{ delete h.protected; }catch(e){} }
       }
     });
+    // synchronize statusIcons with cleared properties (remove icons whose underlying state no longer present)
+    try{
+      state.playfield.forEach(h=>{
+        if(!h || !h.statusIcons) return;
+        h.statusIcons = (h.statusIcons || []).filter(si=>{
+          if(!si || !si.id) return false;
+          if(si.id === 'defend') return Boolean(h.defending);
+          if(si.id === 'help') return Boolean(h.helped);
+          if(si.id === 'assist') return Boolean(h.hitBonus && h.hitBonus > 0);
+          if(si.id === 'protected') return Boolean(h.protected);
+          if(si.id === 'lumalia'){
+            // keep lumalia icon only if a pendingEffect for this slot remains
+            const hasPending = (state.pendingEffects||[]).some(pe=>pe && pe.id === 'lumalia' && pe.slot === (state.playfield.indexOf(h)));
+            return hasPending;
+          }
+          // Unknown or custom icons: only keep if they explicitly mark themselves persistent
+          return Boolean(si && si.persistent);
+        });
+      });
+    }catch(e){}
     // Reset per-round support usage so supports are usable next round
     try{ state.supportUsed = {}; }catch(e){}
     // return the stunned event plus any damage events produced by pendingEffects
@@ -538,26 +677,46 @@ export function enemyAct(state){
         }
       }
     } else {
-      // Single-target attack: roll hit first; if miss, emit a missed hit event without
-      // mutating hero HP. If hit, roll crit and apply doubled damage on crit.
+      // Single-target attack: if the chosen target is defending (Dodge), the
+      // attack has a flat 50% chance to miss. If not defending, use the
+      // attack's hit chance as before. Crit rolls still apply on hits.
       const hitChance = (atk && typeof atk.hitChance === 'number') ? atk.hitChance : 1.0;
       const critChance = (atk && typeof atk.critChance === 'number') ? atk.critChance : 0.0;
-      if(!checkHit(state, hitChance)){
-        const idx = _selectSingleTargetIndex(state, state.rng);
-        if(idx !== -1 && state.playfield[idx]){
-          const h = state.playfield[idx];
-          const ev = { type:'hit', slot: idx, dmg: 0, tempTaken: 0, hpTaken: 0, remainingHp: h.hp, died:false, heroName: h.base && h.base.name ? h.base.name : null };
-          ev.attackType = 'single';
-          if(typeof atkIndex === 'number') ev.attack = atkIndex+1;
-          if(attackName) ev.attackName = attackName;
-          ev.missed = true;
-          events.push(ev);
+      const idx = _selectSingleTargetIndex(state, state.rng);
+      if(idx !== -1 && state.playfield[idx]){
+        const h = state.playfield[idx];
+        // If defending, apply 50% dodge chance
+        if(h.defending){
+          const dodgeMiss = _rngRoll(state) < 0.5;
+          if(dodgeMiss){
+            const ev = { type:'hit', slot: idx, dmg: 0, tempTaken: 0, hpTaken: 0, remainingHp: h.hp, died:false, heroName: h.base && h.base.name ? h.base.name : null };
+            ev.attackType = 'single';
+            if(typeof atkIndex === 'number') ev.attack = atkIndex+1;
+            if(attackName) ev.attackName = attackName;
+            ev.missed = true;
+            events.push(ev);
+          } else {
+            const isCrit = checkCrit(state, critChance);
+            const usedDmg = isCrit ? Math.floor(baseDmg * 2) : baseDmg;
+            const evs = resolveSingleTargetAttack(state, usedDmg, atkIndex, attackName);
+            evs.forEach(ev=>{ ev.crit = isCrit; ev.baseDmg = baseDmg; events.push(ev); });
+          }
+        } else {
+          // Not defending: use normal hit/crit resolution
+          if(!checkHit(state, hitChance)){
+            const ev = { type:'hit', slot: idx, dmg: 0, tempTaken: 0, hpTaken: 0, remainingHp: h.hp, died:false, heroName: h.base && h.base.name ? h.base.name : null };
+            ev.attackType = 'single';
+            if(typeof atkIndex === 'number') ev.attack = atkIndex+1;
+            if(attackName) ev.attackName = attackName;
+            ev.missed = true;
+            events.push(ev);
+          } else {
+            const isCrit = checkCrit(state, critChance);
+            const usedDmg = isCrit ? Math.floor(baseDmg * 2) : baseDmg;
+            const evs = resolveSingleTargetAttack(state, usedDmg, atkIndex, attackName);
+            evs.forEach(ev=>{ ev.crit = isCrit; ev.baseDmg = baseDmg; events.push(ev); });
+          }
         }
-      } else {
-        const isCrit = checkCrit(state, critChance);
-        const usedDmg = isCrit ? Math.floor(baseDmg * 2) : baseDmg;
-        const evs = resolveSingleTargetAttack(state, usedDmg, atkIndex, attackName);
-        evs.forEach(ev=>{ ev.crit = isCrit; ev.baseDmg = baseDmg; events.push(ev); });
       }
     }
     // after performing the attack(s), fall through to common end-of-turn housekeeping
@@ -567,8 +726,11 @@ export function enemyAct(state){
   // Advance turn housekeeping and return empty events — enemy cannot act.
   state.ap = state.apPerTurn;
   Object.keys(state.summonCooldowns).forEach(k=>{ if(state.summonCooldowns[k] > 0) state.summonCooldowns[k]--; });
+  try{ Object.keys(state.abilityCooldowns||{}).forEach(k=>{ if(state.abilityCooldowns[k] > 0) state.abilityCooldowns[k]--; }); }catch(e){}
   state.playfield.forEach(h=>{ if(h && h.defending) h.defending = false; });
   state.playfield.forEach(h=>{ if(h && h.helped) h.helped = false; });
+  // clear any temporary hit chance bonuses applied for the player's turn
+  state.playfield.forEach(h=>{ if(h && h.hitBonus) { try{ h.hitBonus = 0; }catch(e){} } });
   // Process any pendingEffects that should trigger after the enemy acted
   if(state.pendingEffects && Array.isArray(state.pendingEffects) && state.pendingEffects.length>0){
     const remaining = [];
@@ -598,6 +760,24 @@ export function enemyAct(state){
       if(!h.protected || h.protected.turns <= 0){ try{ delete h.protected; }catch(e){} }
     }
   });
+  // synchronize statusIcons with cleared properties (remove icons whose underlying state no longer present)
+  try{
+    state.playfield.forEach(h=>{
+      if(!h || !h.statusIcons) return;
+      h.statusIcons = (h.statusIcons || []).filter(si=>{
+        if(!si || !si.id) return false;
+        if(si.id === 'defend') return Boolean(h.defending);
+        if(si.id === 'help') return Boolean(h.helped);
+        if(si.id === 'assist') return Boolean(h.hitBonus && h.hitBonus > 0);
+        if(si.id === 'protected') return Boolean(h.protected);
+        if(si.id === 'lumalia'){
+          const hasPending = (state.pendingEffects||[]).some(pe=>pe && pe.id === 'lumalia' && pe.slot === (state.playfield.indexOf(h)));
+          return hasPending;
+        }
+        return Boolean(si && si.persistent);
+      });
+    });
+  }catch(e){}
   // Reset per-round support usage so supports (like Scout) are usable next round
   try{ state.supportUsed = {}; }catch(e){}
   // drawing removed — cards remain static in `deck.hand` for duration of encounter

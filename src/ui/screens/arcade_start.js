@@ -195,7 +195,7 @@ export function renderStart(root, ctx){
     {value:'hp:desc', label:'Sort: HP (desc)'},
   ];
   const filterWidget = buildCustomSelect(filterItems, 'all');
-  const sortWidget = buildCustomSelect(sortItems, 'name:asc');
+  const sortWidget = buildCustomSelect(sortItems, 'slot_cost:asc');
   filterWidget.onchange(()=> renderCards());
   sortWidget.onchange(()=> renderCards());
   controls.appendChild(filterWidget);

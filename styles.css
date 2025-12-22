@@ -98,7 +98,7 @@ body{background:linear-gradient(180deg,var(--bg),#071024);color:#e6eef8}
 
 .upgrades-screen .card-wrap{
   /* match the base card height so every tile occupies the same vertical space */
-  height: 380px;
+  height: 400px;
   display:flex;
   flex-direction:column;
 }
@@ -234,6 +234,7 @@ body{background:linear-gradient(180deg,var(--bg),#071024);color:#e6eef8}
 
 /* Footer placed inside a card so action buttons anchor to the bottom */
 .card .card-footer{ margin-top: auto; padding-top:8px; display:flex; gap:8px }
+.battle-panel .card .card-footer{ margin-top:0px; padding-top:0px }
 .card .card-footer .btn{ flex:1 }
 
 /* Temp HP badge for summons/abilities (top-left of card) */
@@ -270,7 +271,7 @@ body{background:linear-gradient(180deg,var(--bg),#071024);color:#e6eef8}
 .lumalia-badge{
   position:absolute;
   left:8px;
-  bottom:32px;
+  bottom:70px;
   background:linear-gradient(180deg,#fde68a,#f59e0b);
   color:#1f2937;
   padding:6px 8px;
@@ -285,7 +286,7 @@ body{background:linear-gradient(180deg,var(--bg),#071024);color:#e6eef8}
 .willis-badge{
   position:absolute;
   left:48px;
-  bottom:32px;
+  bottom:70px;
   background:linear-gradient(180deg,#c7f9ff,#60a5fa);
   color:#05204a;
   padding:6px 8px;
@@ -294,6 +295,55 @@ body{background:linear-gradient(180deg,var(--bg),#071024);color:#e6eef8}
   font-size:16px;
   z-index:60;
   box-shadow:0 6px 18px rgba(0,0,0,0.45);
+}
+
+/* Backline shield indicator shown on formation-3 back slot to indicate AoE immunity */
+.backline-shield{
+  position:absolute;
+  right:8px;
+  top:20px;
+  background:linear-gradient(180deg,#cbd5e1,#94a3b8);
+  color:#08203a;
+  padding:6px 8px;
+  border-radius:8px;
+  font-weight:900;
+  font-size:16px;
+  z-index:60;
+  box-shadow:0 6px 18px rgba(0,0,0,0.45);
+  opacity:0.95;
+}
+
+/* Status overlay for ordered status icons on hero cards */
+.status-overlay{
+  position:absolute;
+  left:8px;
+  right:8px;
+  /* sit just above the stats/HP area inside the card */
+  bottom:30px;
+  display:flex;
+  gap:8px;
+  align-items:center;
+  justify-content:flex-start;
+  z-index:60;
+  transition: opacity 120ms ease;
+  max-height:none;
+  overflow:visible;
+  pointer-events:auto;
+}
+.status-overlay .status-icon{
+  width:36px;
+  height:36px;
+  border-radius:8px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background: transparent;
+  background-color: #9c9c9c;
+  color:#000000;
+  font-weight:900;
+  font-size:25px;
+  border: none;
+  box-shadow: none;
 }
 
 /* slot and enemy HP styling */
@@ -332,10 +382,10 @@ body{background:linear-gradient(180deg,var(--bg),#071024);color:#e6eef8}
 }
 
 /* Make sure upgrades screen card-wrap matches responsive card heights */
-@media (min-width:1001px){ .upgrades-screen .card-wrap{ height:380px } }
-@media (max-width:1000px){ .upgrades-screen .card-wrap{ height:340px } }
-@media (max-width:720px){ .upgrades-screen .card-wrap{ height:320px } }
-@media (max-width:420px){ .upgrades-screen .card-wrap{ height:280px } }
+@media (min-width:1001px){ .upgrades-screen .card-wrap{ height:440px } }
+@media (max-width:1000px){ .upgrades-screen .card-wrap{ height:400px } }
+@media (max-width:720px){ .upgrades-screen .card-wrap{ height:380px } }
+@media (max-width:420px){ .upgrades-screen .card-wrap{ height:320px } }
 
 /* Prevent cards on the Upgrades screen from resizing with the window
    Keep a fixed tile size so footers/buttons remain aligned regardless
@@ -343,7 +393,7 @@ body{background:linear-gradient(180deg,var(--bg),#071024);color:#e6eef8}
 .upgrades-screen .card-wrap,
 .upgrades-screen .card{
   width: 220px !important;
-  height: 400px !important;
+  height: 440px !important;
   flex: 0 0 auto !important;
   transition: none !important;
 }
@@ -356,7 +406,7 @@ body{background:linear-gradient(180deg,var(--bg),#071024);color:#e6eef8}
 .hand-title{font-size:18px;color:var(--accent);font-weight:800;margin:0 0 8px 0}
 
 /* spacing for End Turn button so it doesn't sit flush against the hand */
-.end-turn-btn{margin-top:14px}
+.end-turn-btn{margin-top:0px}
 
 /* Make the End Turn button smaller on the battle screen */
 .battle-panel .end-turn-btn{
@@ -384,13 +434,18 @@ body{background:linear-gradient(180deg,var(--bg),#071024);color:#e6eef8}
   transition: transform 140ms ease;
   display:flex;
   justify-content:center;
+  margin-top: 50px;
 }
 .battle-scale .battle-panel{ /* base design width to scale from */
   width: 1100px; /* matches main content max-width; scaled down on small viewports */
 }
 
 /* top row contains playfield on the left and enemy on the right */
-.battle-top{display:flex;gap:18px;align-items:flex-start}
+/* top row: center playfield vertically with the enemy column */
+.battle-top{display:flex;gap:18px;align-items:center}
+
+/* Nudge playfield upward so spaces sit slightly higher than the enemy card */
+.battle-top .playfield{ transform: translateY(-45px); }
 
 /* How to Play screen styles */
 .help-panel{
@@ -424,15 +479,15 @@ body{background:linear-gradient(180deg,var(--bg),#071024);color:#e6eef8}
   width: auto;
 }
 
-/* Nudge the playfield upward so the spaces sit higher on the screen */
-.battle-top .playfield{margin-top:-100px}
+/* ensure playfield aligns with enemy vertically (no manual offset) */
+.battle-top .playfield{margin-top:0}
 
 /* Playfield: left column. front slots stacked vertically and positioned close to the enemy; back slot sits behind them */
 .playfield{width:48%;display:grid;grid-template-columns:auto 1fr;gap:20px;position:relative;min-height:220px}
 /* left: back slot (slot 3) placed in column 1 and vertically centered relative to the front stack */
 .playfield-back{grid-column:1;display:flex;justify-content:center;align-items:center;position:relative;min-width:260px;align-self:center}
 /* right: front column (slots 1 & 2) stacked, placed in column 2 */
-.playfield-front{grid-column:2;display:flex;flex-direction:column;gap:8px;align-items:flex-start;margin-left:0}
+.playfield-front{grid-column:2;display:flex;flex-direction:column;gap:16px;align-items:flex-start;margin-left:0}
 
 /* Extra space specifically between slot 0 and slot 1 so action buttons fit below the card */
 .playfield-front > .card-wrap:first-child{margin-bottom:12px}
@@ -444,7 +499,7 @@ body{background:linear-gradient(180deg,var(--bg),#071024);color:#e6eef8}
 .playfield .card .card-image{max-height:calc(100% - 52px) !important;width:90%;margin:0 auto;object-fit:contain}
 /* Ensure action/defend buttons for playfield slots sit below the character card and are centered */
 .playfield .card-wrap{display:flex;flex-direction:column;align-items:stretch;gap:4px;padding:0 !important}
-.playfield .card-wrap .row{width:100%;justify-content:center;margin-top:50px;display:flex;gap:8px;align-items:center}
+.playfield .card-wrap .row{width:100%;justify-content:center;margin-top:20px;display:flex;gap:8px;align-items:center}
 .playfield .card{flex:0 0 auto;margin-bottom:12px}
 .playfield .card-wrap .row .btn{min-width:100px}
 .playfield .card-wrap .row .btn.slot-action{min-width:88px;padding:6px 10px;font-size:14px}
@@ -477,6 +532,100 @@ body{background:linear-gradient(180deg,var(--bg),#071024);color:#e6eef8}
 .playfield .card .card-image{flex:1 1 auto;max-height:calc(100% - 44px) !important;width:96%;margin:0 auto;object-fit:contain}
 .playfield .card .card-body{flex:0 0 auto}
 
+/* Space between the playfield and the hand area on the battle screen */
+/* Reduce overlap by lowering the hand slightly (less negative moves it down) */
+.battle-panel .hand-wrap{ margin-top:0px }
+
+/* Formation controls styling */
+.formation-controls{display:inline-flex;gap:8px;align-items:center}
+.formation-controls .formation-btn{
+  background: linear-gradient(180deg,#0b1220,#16324a);
+  color: #e6eef8;
+  border: 1px solid rgba(255,255,255,0.04);
+  padding: 6px 12px;
+  font-weight:900;
+  border-radius:999px;
+  width:40px;
+  height:40px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  cursor:pointer;
+  box-shadow: 0 8px 20px rgba(2,6,23,0.45);
+  transition: transform 140ms ease, box-shadow 140ms ease, background 140ms ease;
+}
+.formation-controls .formation-btn:hover{ transform:translateY(-3px); box-shadow:0 14px 36px rgba(2,6,23,0.6) }
+.formation-controls .formation-btn:focus{ outline:3px solid rgba(134,239,172,0.12); }
+.formation-controls .formation-btn.selected{
+  background: linear-gradient(180deg,#86efac,#34d399);
+  color:#042a1f;
+  border: 1px solid rgba(3,105,77,0.12);
+  box-shadow: 0 12px 36px rgba(52,211,153,0.12), inset 0 -2px 0 rgba(255,255,255,0.06);
+  transform:translateY(-2px);
+}
+/* Locked/disabled formation button appearance */
+.formation-controls .formation-btn.locked{
+  opacity: 0.44;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+.formation-controls .formation-btn.locked:hover{ transform:none; box-shadow:none }
+
+/* Playfield formation variants */
+.playfield.formation-1{ grid-template-columns: auto 1fr; gap: 120px; column-gap: 120px; }
+.playfield.formation-1 .playfield-back{ grid-column:1 }
+.playfield.formation-1 .playfield-front{ grid-column:2 }
+
+/* Extra vertical spacing between the two front slots specifically for formation-1 */
+.playfield.formation-1 .playfield-front > .card-wrap:first-child{ margin-bottom: 80px; }
+
+.playfield.formation-2{ grid-template-columns: 1fr auto; gap: 120px; column-gap: 120px; }
+.playfield.formation-2 .playfield-back{ grid-column:2 }
+.playfield.formation-2 .playfield-front{ grid-column:1 }
+
+/* Lower the back slot (index 2) in formation-2 so it sits visually lower */
+.playfield.formation-2 .playfield-back .card-wrap{ margin-top: 80px; }
+
+/* Extra vertical spacing between the back front slots specifically for formation-2 */
+.playfield.formation-2 .playfield-back > .card-wrap:first-child{ margin-bottom: 80px; }
+
+/* Align stacked left column in formation-2 with formation-1 stacked front spacing
+  Push the first child (slot 1) down so slot 2 sits at the same vertical position
+  relative to the playfield as formation-1's front slots. */
+.playfield.formation-2 .playfield-left > .card-wrap:first-child{ margin-bottom: 80px; }
+
+.playfield.formation-3{ grid-template-columns: 1fr; grid-template-rows: auto auto; }
+.playfield.formation-3 .playfield-back{ grid-column:1; grid-row:1 }
+.playfield.formation-3 .playfield-front{ grid-column:1; grid-row:2 }
+
+/* Formation-3: line up slots horizontally with overlap — slot0 front, slot1 middle, slot2 back */
+/* More separated horizontal arrangement for formation-3 */
+.playfield.formation-3 .playfield-row{ display:flex; align-items:center; justify-content:center; gap:64px; position:relative }
+.playfield.formation-3 .playfield-row .card-wrap{ position:relative; margin:0; transform:none }
+.playfield.formation-3 .playfield-row .card-wrap[data-slot="2"]{ z-index:1 }
+.playfield.formation-3 .playfield-row .card-wrap[data-slot="1"]{ z-index:2 }
+.playfield.formation-3 .playfield-row .card-wrap[data-slot="0"]{ z-index:3 }
+
+@media (max-width:720px){
+  .playfield.formation-3 .playfield-row{ gap:28px }
+}
+
+/* Responsive reductions for large formation column gaps on small screens */
+@media (max-width:1000px){
+  .playfield.formation-1, .playfield.formation-2{ gap: 72px; column-gap:72px }
+}
+@media (max-width:720px){
+  .playfield.formation-1, .playfield.formation-2{ gap: 40px; column-gap:40px }
+}
+
+/* Structural layout for formation-2 (DOM reflow approach)
+  Left column stacks slots 1 & 2; right column centers slot 0 vertically. */
+.playfield.formation-2 .playfield-left{ grid-column:1; display:flex; flex-direction:column; gap:16px; align-items:flex-start }
+.playfield.formation-2 .playfield-right{ grid-column:2; display:flex; align-items:center; justify-content:center }
+.playfield.formation-2 .playfield-left .card-wrap{ width:200px }
+.playfield.formation-2 .playfield-right .card-wrap{ width:220px }
+
+
 /* Reduce vertical spacing between name, image, and stats on playfield cards */
 .playfield .card-name{margin:0;font-size:16px;line-height:1}
 .playfield .card .card-image{margin:0}
@@ -488,7 +637,6 @@ body{background:linear-gradient(180deg,var(--bg),#071024);color:#e6eef8}
   align-items:center;
   justify-content:center;
   min-height:240px; /* matches .playfield .card height */
-  padding:0 !important;
 }
 .playfield .card-wrap.empty-slot .empty-label{
   color:var(--muted);
@@ -583,7 +731,7 @@ body{background:linear-gradient(180deg,var(--bg),#071024);color:#e6eef8}
 
 /* Ensure End Turn inside the enemy column is centered and smaller like other buttons */
 .enemy-area .end-turn-btn{
-  margin-top:80px;
+  margin-top:0px;
   align-self:center;
   padding:12px 18px;
   font-size:18px;
@@ -629,7 +777,7 @@ body{background:linear-gradient(180deg,var(--bg),#071024);color:#e6eef8}
 /* Visual shield badge shown on defended playfield characters */
 .defend-badge{
   position:absolute;
-  bottom:32px;
+  bottom:70px;
   right:8px;
   width:36px;
   height:36px;
@@ -718,6 +866,32 @@ body{background:linear-gradient(180deg,var(--bg),#071024);color:#e6eef8}
 .end-btns{display:flex;gap:12px;justify-content:center;margin-top:8px}
 .end-back-btn{background:linear-gradient(180deg,#2563eb,#1e40af);color:#fff;padding:12px 18px;border-radius:10px;font-weight:800;box-shadow:0 10px 22px rgba(30,64,175,0.28)}
 .end-back-btn:hover{transform:translateY(-3px);box-shadow:0 14px 28px rgba(30,64,175,0.36)}
+
+/* Enemy attack floating label */
+.enemy-attack-label{
+  position:absolute;
+  left:50%;
+  top:10%;
+  transform:translateX(-50%);
+  background:linear-gradient(180deg,#6b0000,#330000);
+  color:#fff;
+  padding:8px 14px;
+  border-radius:10px;
+  font-weight:900;
+  font-size:14px;
+  letter-spacing:0.6px;
+  pointer-events:none;
+  box-shadow:0 8px 30px rgba(139,0,0,0.45), inset 0 -2px 8px rgba(255,120,120,0.06);
+  opacity:1;
+  animation: enemyLabelFloat 5s cubic-bezier(.2,.9,.2,1) forwards;
+  z-index:120;
+  border:1px solid rgba(255,120,120,0.06);
+}
+@keyframes enemyLabelFloat{
+  0%{ transform:translateX(-50%) translateY(0); opacity:1 }
+  70%{ transform:translateX(-50%) translateY(-28px); opacity:0.6 }
+  100%{ transform:translateX(-50%) translateY(-44px); opacity:0 }
+}
 
 /* Floating controls (bottom-right) for Dismiss / Cancel Pending */
 .floating-controls{position:fixed;right:18px;bottom:18px;display:flex;flex-direction:column;gap:8px;z-index:10005;align-items:flex-end}
@@ -1215,7 +1389,7 @@ body{
 .help-badge{
   position:absolute;
   /* align vertically with defend-badge and sit left of it */
-  bottom:32px;
+  bottom:70px;
   right:52px;
   width:36px;
   height:36px;
@@ -1229,6 +1403,47 @@ body{
   font-weight:900;
   box-shadow:0 6px 12px rgba(250,200,60,0.18);
   z-index:40;
+}
+
+/* Assist badge: indicates an accuracy buff applied by Scout's Assist */
+.assist-badge{
+  position:absolute;
+  bottom:130px;
+  left:8px;
+  width:36px;
+  height:36px;
+  border-radius:999px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:linear-gradient(180deg,#bfdbfe,#60a5fa);
+  color:#072554;
+  font-size:16px;
+  font-weight:900;
+  box-shadow:0 6px 12px rgba(20,80,160,0.18);
+  z-index:40;
+}
+
+/* Ability button cooldown badge */
+.ability-btn{ position: relative }
+.ability-cooldown-badge{
+  position: absolute;
+  top: -12px;
+  right: -8px;
+  min-width:20px;
+  height:20px;
+  padding:0 6px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:999px;
+  background: linear-gradient(180deg,#ef4444,#b91c1c);
+  color: #fff;
+  font-size:12px;
+  font-weight:900;
+  box-shadow: 0 6px 14px rgba(0,0,0,0.32);
+  z-index:60;
+  pointer-events: none;
 }
 
 /* Dragging visuals for hand-to-playfield placement */
@@ -1278,7 +1493,7 @@ body.dragging-active .card-wrap.panel{
 
 /* Small badge shown on disabled menu modes */
 .menu-button{ position:relative }
-.coming-soon-badge{ position:absolute; right:12px; top:8px; background:rgba(0,0,0,0.6); color:#cbd5e1; padding:6px 8px; border-radius:8px; font-size:12px; font-weight:800; pointer-events:none; text-transform:uppercase; letter-spacing:0.6px }
+.coming-soon-badge{ position:absolute; left:120px; top:2px; background:rgba(0,0,0,0.6); color:#cbd5e1; padding:6px 8px; border-radius:8px; font-size:12px; font-weight:800; pointer-events:none; text-transform:uppercase; letter-spacing:0.6px }
 
 /* Arcade button styling */
 .menu-button.arcade{ background:linear-gradient(180deg,#60a5fa,#2563eb); color:#fff; padding:20px 24px; font-size:22px; font-weight:900; border-radius:14px; border:2px solid rgba(0,0,0,0.2); box-shadow: 0 18px 44px rgba(37,99,235,0.28); display:flex; align-items:center; justify-content:center; gap:10px }
@@ -1300,5 +1515,11 @@ body.dragging-active .card-wrap.panel{
 .menu-top-btn:hover{ transform:translateY(-2px); box-shadow:0 18px 36px rgba(0,0,0,0.36); filter:brightness(1.02) }
 .menu-top-btn.icon{ padding:8px; min-width:44px; height:44px; display:flex; align-items:center; justify-content:center }
 .menu-top-btn .menu-btn-icon-left{ width:28px; height:28px; border-radius:8px; background:rgba(255,255,255,0.12); font-size:16px; margin-right:6px }
+
+/* Overrides: spread menu buttons out more and enlarge column */
+.menu-screen{ gap:34px !important; padding:40px !important }
+.menu-logo{ max-width:720px !important }
+.menu-buttons{ gap:34px !important; width:350px !important; max-width:94% !important }
+.menu-button{ padding:22px 30px !important; font-size:22px !important; border-radius:14px !important; gap:12px !important }
 
 

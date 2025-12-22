@@ -29,6 +29,15 @@
     "hp": 30.0,
     "ability": "Divine Smite: 10 damage",
     "actionType": "attack",
+    "abilities": [
+      {
+        "ability": "Divine Smite: 10 damage",
+        "actionType": "attack",
+        "hitChance": 0.95,
+        "critChance": 0.20,
+        "primary": true
+      }
+    ],
     "tier": 5,
     "slot_cost": 5.0,
     "ip_cost": 100,
@@ -39,8 +48,14 @@
     "name": "Bjurganmyr",
     "type": "Support",
     "hp": 30.0,
-    "ability": "Spike Growth: 8 damage per turn for 3 turns",
-    "actionType": "attack",
+    "abilities": [
+      {
+        "name": "Spike Growth: 8 damage per turn",
+        "ability": "Spike Growth: 8 damage per turn for 3 turns",
+        "actionType": "support",
+        "primary": true
+      }
+    ],
     "tier": 5,
     "slot_cost": 5.0,
     "ip_cost": 100,
@@ -51,8 +66,21 @@
     "name": "Tor",
     "type": "Healer",
     "hp": 30.0,
-    "ability": "Mass Heal: heals entire party 8 HP",
-    "actionType": "heal",
+    "abilities": [
+      {
+        "name": "Mass Heal: 8 HP all",
+        "ability": "Mass Heal: heals entire party 8 HP",
+        "actionType": "heal",
+        "primary": true
+      },
+      {
+        "ability": "Throw Whelm: 5 damage",
+        "actionType": "attack",
+        "hitChance": 0.95,
+        "critChance": 0.05,
+        "primary": false
+      }
+    ],
     "tier": 5,
     "slot_cost": 5.0,
     "ip_cost": 100,
@@ -63,8 +91,15 @@
     "name": "Griff",
     "type": "DPS",
     "hp": 30.0,
-    "ability": "Fireball: 10 damage",
-    "actionType": "attack",
+    "abilities": [
+      {
+        "ability": "Fireball: 10 damage",
+        "actionType": "attack",
+        "hitChance": 1.00,
+        "critChance": 0.00,
+        "primary": true
+      }
+    ],
     "tier": 5,
     "slot_cost": 5.0,
     "ip_cost": 100,
@@ -75,8 +110,14 @@
     "name": "Miley",
     "type": "Support",
     "hp": 30.0,
-    "ability": "Dawn: 8 damage per turn for 3 turns",
-    "actionType": "attack",
+    "abilities": [
+      {
+        "name": "Dawn: 8 damage per turn",
+        "ability": "Dawn: 8 damage per turn for 3 turns",
+        "actionType": "support",
+        "primary": true
+      }
+    ],
     "tier": 5,
     "slot_cost": 5.0,
     "ip_cost": 100,
@@ -87,8 +128,22 @@
     "name": "Kiefer",
     "type": "Support",
     "hp": 30.0,
-    "ability": "Telekineses: 1 in 4 chance enemy is stunned for 3 turns",
-    "actionType": "attack",
+    "abilities": [
+      {
+        "name": "Telekinesis: Stun chance",
+        "ability": "Telekinesis: 1 in 4 chance enemy is stunned for 3 turns",
+        "actionType": "support",
+        "primary": true
+      },
+      {
+        "name": "Firebolt: 5 damage",
+        "ability": "Firebolt: 5 damage",
+        "actionType": "attack",
+        "hitChance": 0.95,
+        "critChance": 0.05,
+        "primary": false
+      }
+    ],
     "tier": 5,
     "slot_cost": 5.0,
     "ip_cost": 100,
