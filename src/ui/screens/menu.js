@@ -29,7 +29,7 @@ export function renderMenu(root, ctx={}){
   const arcadeBtn = createBtn('Arcade Mode', ()=>{ if(typeof ctx.onArcade === 'function') ctx.onArcade(); }, false);
   // mark arcade button for specialized styling and add a small icon
   try{ arcadeBtn.classList.add('arcade'); const icon = el('span',{class:'menu-btn-icon-left'},['🎮']); arcadeBtn.insertBefore(icon, arcadeBtn.firstChild); }catch(e){}
-  const adventureBtn = createBtn('Adventure Mode', null, true);
+  const adventureBtn = createBtn('Adventure Mode', ()=>{ if(typeof ctx.onAdventure === 'function') ctx.onAdventure(); }, false);
   try{ adventureBtn.classList.add('adventure'); const aicon = el('span',{class:'menu-btn-icon-left'},['🗺️']); adventureBtn.insertBefore(aicon, adventureBtn.firstChild); }catch(e){}
   const campaignBtn = createBtn('Campaign Mode', null, true);
   try{ campaignBtn.classList.add('campaign'); const cicon = el('span',{class:'menu-btn-icon-left'},['🏰']); campaignBtn.insertBefore(cicon, campaignBtn.firstChild); }catch(e){}

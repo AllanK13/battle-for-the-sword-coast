@@ -6,6 +6,7 @@ import { AudioManager } from './engine/audio.js';
 import { register, navigate } from './ui/router.js';
 import { renderStart } from './ui/screens/arcade_start.js';
 import { renderMenu } from './ui/screens/menu.js';
+import { renderAdventureStart } from './ui/screens/adventure_start.js';
 import { renderStats } from './ui/screens/arcade_stats.js';
 import { renderHowTo } from './ui/screens/arcade_howto.js';
 import { renderUpgrades } from './ui/screens/arcade_upgrades.js';
@@ -538,9 +539,26 @@ function appStart(){
     });
   });
 
-  // Top-level menu screen with Arcade / Adventure / Campaign options
-  register('menu', (root)=> renderMenu(root, { data, meta, onArcade: ()=> navigate('arcade_start') }));
+  // Adventure Mode start screen
+  register('adventure_start', (root)=> {
+    try{
+      const musicCandidates = ['./assets/music/menu.mp3','assets/music/menu.mp3','/assets/music/menu.mp3'];
+      AudioManager.init(musicCandidates[0], { autoplay:true, loop:true });
+    }catch(e){}
+    return renderAdventureStart(root, {
+      data,
+      meta,
+      onBack: ()=> navigate('menu'),
+      onStartAdventure: (id)=>{
+        // Default behavior: navigate back to menu; callers can override via ctx
+        try{ if(typeof id === 'string') console.log('Start adventure:', id); }catch(e){}
+        navigate('menu');
+      }
+    });
+  });
 
+  // Top-level menu screen with Arcade / Adventure / Campaign options
+  register('menu', (root)=> renderMenu(root, { data, meta, onArcade: ()=> navigate('arcade_start'), onAdventure: ()=> navigate('adventure_start') }));
 
   register('arcade_stats', (root)=> renderStats(root, { data, meta, onBack: ()=> navigate('arcade_start') }));
 

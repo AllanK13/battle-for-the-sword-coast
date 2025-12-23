@@ -1,0 +1,68 @@
+import { el } from '../renderer.js';
+import { navigate } from '../router.js';
+import { AudioManager } from '../../engine/audio.js';
+
+export function renderAdventureStart(root, ctx = {}){
+	const container = el('div',{class:'adventure-start-screen'},[]);
+
+	const titleText = (ctx && ctx.meta && ctx.meta.gameName) ? ctx.meta.gameName : 'Battle for the Sword Coast';
+	const logo = el('img',{src:'assets/title_logo.png', alt:titleText, class:'title-logo'});
+	logo.addEventListener('error', ()=>{ logo.src='assets/title_logo.jpg'; });
+	logo.addEventListener('error', ()=>{ logo.style.display='none'; });
+	container.appendChild(logo);
+
+	// Menu button (top-left)
+	try{
+		const menuBtn = el('button',{class:'btn menu-top-btn floating icon', style:'position:fixed;left:18px;top:18px;z-index:10030;height:40px;display:flex;align-items:center;justify-content:center;padding:4px 8px;border-radius:6px;font-size:16px', title:'Menu'},[ el('span',{style:'font-size:20px;line-height:1;display:inline-block'},['🏠']) ]);
+		menuBtn.addEventListener('click', ()=>{ if(ctx && typeof ctx.onBack === 'function') ctx.onBack(); else navigate('menu'); });
+		container.appendChild(menuBtn);
+	}catch(e){ }
+
+	// Floating music control (matches other screens)
+	try{
+		const musicBtn = el('button',{class:'btn music-btn floating icon', style:'position:fixed;right:18px;bottom:36px;z-index:10030;height:40px;display:flex;align-items:center;justify-content:center;padding:4px 8px;border-radius:6px;background:linear-gradient(180deg,#10b981,#047857);color:#fff;border:1px solid rgba(0,0,0,0.12);font-size:22px', title:'Music'},[ el('span',{style:'font-size:22px;line-height:1;display:inline-block'},[ AudioManager.isEnabled() ? '🔊' : '🔈' ]) ]);
+		const musicPanel = el('div',{class:'panel music-panel', style:'position:fixed;right:18px;bottom:76px;z-index:10030;display:none;padding:8px;border-radius:8px;box-shadow:0 8px 20px rgba(0,0,0,0.25)'},[]);
+		const volLabel = el('div',{},['Volume']);
+		const volInput = el('input',{type:'range', min:0, max:100, value: String(Math.round((AudioManager.getVolume ? AudioManager.getVolume() : 0.6) * 100)), style:'width:160px;display:block'});
+		volInput.addEventListener('input', (ev)=>{ const v = Number(ev.target.value || 0) / 100; AudioManager.setVolume(v); });
+		function syncControls(){ try{ const span = musicBtn.querySelector('span'); if(span) span.textContent = AudioManager.isEnabled() ? '🔊' : '🔈'; const v = Math.round((AudioManager.getVolume ? AudioManager.getVolume() : 0.6) * 100); volInput.value = String(v); }catch(e){} }
+		musicPanel.appendChild(volLabel);
+		musicPanel.appendChild(volInput);
+		let panelTimer = null;
+		function showPanel(){ syncControls(); musicPanel.style.display = 'block'; if(panelTimer) clearTimeout(panelTimer); panelTimer = setTimeout(()=>{ musicPanel.style.display = 'none'; panelTimer = null; }, 4000); }
+		musicBtn.addEventListener('click', ()=>{ const on = AudioManager.toggle(); const span = musicBtn.querySelector('span'); if(span) span.textContent = on ? '🔊' : '🔈'; syncControls(); showPanel(); });
+		musicBtn.addEventListener('mouseover', showPanel);
+		musicPanel.addEventListener('mouseover', ()=>{ if(panelTimer) clearTimeout(panelTimer); });
+		musicPanel.addEventListener('mouseleave', ()=>{ if(panelTimer) clearTimeout(panelTimer); panelTimer = setTimeout(()=>{ musicPanel.style.display='none'; panelTimer=null; }, 1000); });
+		container.appendChild(musicBtn);
+		container.appendChild(musicPanel);
+	}catch(e){ }
+
+	// Adventure choice buttons with image placeholders above each (stacked vertically)
+	const choicesWrap = el('div',{class:'adventure-choices', style:'display:flex;flex-direction:column;gap:18px;align-items:center;margin-top:18px;'},[]);
+	const choices = [
+		{ id:'daggerford', label:'Streets of Daggerford', img:'assets/adventure/daggerford.png' },
+		{ id:'waterdeep', label:'Waterdeep Ruins', img:'assets/adventure/waterdeep.png' },
+		{ id:'phandalin', label:'Saving Phandalin', img:'assets/adventure/phandalin.png' }
+	];
+	choices.forEach(ch => {
+		const col = el('div',{class:'adventure-col', style:'width:520px;display:flex;flex-direction:column;align-items:center;'},[]);
+		const img = el('img',{src:ch.img, alt:ch.label, class:'adventure-thumb', style:'width:480px;height:240px;object-fit:cover;border-radius:10px;border:1px solid rgba(0,0,0,0.08);box-shadow:0 8px 20px rgba(0,0,0,0.12);transition:transform 180ms ease, box-shadow 180ms ease'});
+		img.addEventListener('error', ()=>{ img.style.background='#222'; img.style.display='block'; img.style.minHeight='240px'; img.src=''; });
+		img.addEventListener('mouseover', ()=>{ img.style.transform='scale(1.03)'; img.style.boxShadow='0 14px 30px rgba(0,0,0,0.24)'; });
+		img.addEventListener('mouseout', ()=>{ img.style.transform=''; img.style.boxShadow='0 8px 20px rgba(0,0,0,0.12)'; });
+		col.appendChild(img);
+		const btn = el('button',{class:'btn adventure-btn', style:'margin-top:12px;width:480px;padding:12px 16px;font-size:18px;font-weight:700;border-radius:10px;background:linear-gradient(180deg,#2563eb,#1e40af);color:#fff;border:none;box-shadow:0 6px 16px rgba(16,24,40,0.2);transition:transform 120ms ease, box-shadow 120ms ease'},[ ch.label ]);
+		btn.addEventListener('mouseover', ()=>{ try{ btn.style.transform='translateY(-3px)'; btn.style.boxShadow='0 12px 24px rgba(16,24,40,0.25)'; }catch(e){} });
+		btn.addEventListener('mouseout', ()=>{ try{ btn.style.transform=''; btn.style.boxShadow='0 6px 16px rgba(16,24,40,0.2)'; }catch(e){} });
+		btn.addEventListener('click', ()=>{
+			if(ctx && typeof ctx.onStartAdventure === 'function') ctx.onStartAdventure(ch.id);
+			else navigate('menu');
+		});
+		col.appendChild(btn);
+		choicesWrap.appendChild(col);
+	});
+
+	container.appendChild(choicesWrap);
+	root.appendChild(container);
+}
