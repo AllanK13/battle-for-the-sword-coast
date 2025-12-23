@@ -64,6 +64,9 @@ async function loadData(){
   const enemies = await fetchAny([
     './data/enemies.json', 'data/enemies.json', '/data/enemies.json'
   ]);
+  const arcadePath = await fetchAny([
+    './data/arcade_path.json', 'data/arcade_path.json', '/data/arcade_path.json'
+  ]);
   const legendary = await fetchAny([
     './data/legendary.json', 'data/legendary.json', '/data/legendary.json'
   ]);
@@ -72,6 +75,7 @@ async function loadData(){
   ]);
 
   data.cards = cards; data.summons = summons; data.enemies = enemies; data.upgrades = upgrades; data.legendary = legendary || [];
+  data.arcadePath = arcadePath || null;
 }
 
 // Helper: create a deck, start an encounter and build the UI context object.
@@ -82,8 +86,12 @@ function createEncounterSession(enemyIndex, chosenIds, rng){
   const legendaryCards = (data.legendary || []).filter(l => l && typeof l.hp === 'number');
   const cardDefs = (data.cards || []).concat(legendaryCards);
   let deck = buildDeck(cardDefs, chosen, rng);
-  let currentEnemyIndex = enemyIndex || 0;
-  let enemy = data.enemies[currentEnemyIndex];
+  let currentEnemyIndex = (typeof enemyIndex === 'number') ? enemyIndex : 0;
+  // determine the active arcade path (array of enemy ids). Fall back to raw enemies order when missing
+  const path = (data.arcadePath && Array.isArray(data.arcadePath) && data.arcadePath.length>0) ? data.arcadePath : ((data.enemies||[]).map(e=> e && e.id).filter(Boolean));
+  // resolve current enemy by id from the path, fall back to direct index into data.enemies
+  const currentEnemyId = path[currentEnemyIndex];
+  let enemy = (data.enemies||[]).find(e => e && e.id === currentEnemyId) || data.enemies[currentEnemyIndex];
   let encounter = startEncounter({...enemy}, deck, rng, { apPerTurn: meta.apPerTurn || 3 });
   // defensive: ensure per-encounter flags are fresh
   try{
@@ -309,10 +317,11 @@ function createEncounterSession(enemyIndex, chosenIds, rng){
               meta.enemyDefeatCounts[enemyKey] = (meta.enemyDefeatCounts[enemyKey] || 0) + 1;
               saveMeta(meta);
             }catch(e){ /* ignore */ }
-            // advance to next enemy if available
+            // advance to next enemy according to the arcade path if present
             currentEnemyIndex += 1;
-            if(currentEnemyIndex < (data.enemies||[]).length){
-              enemy = data.enemies[currentEnemyIndex];
+            if(currentEnemyIndex < path.length){
+              const nextId = path[currentEnemyIndex];
+              enemy = (data.enemies||[]).find(e => e && e.id === nextId) || data.enemies[currentEnemyIndex];
               // refresh characters/deck so all heroes are available for the next encounter
               // gather every card that may exist in the previous deck/encounter (draw/hand/discard/exhausted/played)
               try{
