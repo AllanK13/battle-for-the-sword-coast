@@ -262,5 +262,34 @@
         "critChance": 0.05
       }
     ]
+  },
+  {
+    "name": "Thug",
+    "ip_reward": 0,
+    "hp": 25,
+    "id": "thug",
+    "attacks": [
+      {
+        "name": "Mace",
+        "type": "single",
+        "dmg": 2,
+        "hitChance": 0.8,
+        "critChance": 0.0
+      },
+      {
+        "name": "Mace",
+        "type": "single",
+        "dmg": 2,
+        "hitChance": 0.8,
+        "critChance": 0.0
+      },      
+      {
+        "name": "Crossbow",
+        "type": "single",
+        "dmg": 1,
+        "hitChance": 0.95,
+        "critChance": 0.0
+      }
+    ]
   }
 ]

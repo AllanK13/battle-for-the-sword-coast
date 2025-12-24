@@ -1,7 +1,7 @@
 import { el, cardTile } from '../renderer.js';
 import { navigate } from '../router.js';
 import { AudioManager } from '../../engine/audio.js';
-import { saveMeta } from '../../engine/arcade_meta.js';
+import { saveMeta, saveMetaIfAllowed } from '../../engine/meta.js';
 
 function slotNode(slotObj, idx, handlers={}, highlight=false, targetHighlight=false, ctx=null){
   const container = el('div',{class:'card-wrap panel'});
@@ -200,7 +200,7 @@ export function renderBattle(root, ctx){
     const ok = window.confirm('Give up? This will forfeit current progress and return to the start screen.');
     if(!ok) return;
     try{ endRunBtn.setAttribute('disabled',''); }catch(e){}
-    try{ if(ctx && ctx.meta) { ctx.meta.summonUsage = {}; saveMeta(ctx.meta); } }catch(e){ console.debug('GiveUp: saveMeta failed', e); }
+    try{ if(ctx && ctx.meta) { ctx.meta.summonUsage = {}; try{ saveMetaIfAllowed(ctx.meta, ctx); }catch(e){} } }catch(e){ console.debug('GiveUp: saveMeta failed', e); }
     try{
       // Prevent any pending timeouts or callbacks from re-rendering the battle
       try{ if(ctx){ ctx.onStateChange = ()=>{}; ctx.setMessage = ()=>{}; } }catch(e){}
@@ -316,7 +316,9 @@ export function renderBattle(root, ctx){
     const sGrid = el('div',{class:'card-grid summons-small'});
     const ownedSummons = (ctx.meta && Array.isArray(ctx.meta.ownedSummons)) ? ctx.meta.ownedSummons : [];
     // include legendary summons in the available pool if purchased
-    const allSummons = ([]).concat(ctx.data.summons || [], ctx.data.legendary || []);
+    let allSummons = ([]).concat(ctx.data.summons || [], ctx.data.legendary || []);
+    // allow session to disable legendary summons (e.g., adventure cinematics)
+    try{ if(ctx && ctx.disableLegendarySummons){ allSummons = ([]).concat(ctx.data.summons || []); } }catch(e){}
     const availableSummons = allSummons.filter(s => ownedSummons.includes(s.id));
     if(availableSummons.length === 0){
       sGrid.appendChild(el('div',{class:'muted'},['No summons available']));
@@ -364,18 +366,48 @@ export function renderBattle(root, ctx){
 
   // show enemy image (wrapped in enemyArea) -- will append after playfield
   // use the manual HP label insertion (keeps the old prominent HP display)
-  // Provide an explicit image override for known enemy assets that may
-  // have different filename casing or large dimensions to avoid rendering
-  // glitches on some platforms (Acererak image uses capital A file).
   const enemyOpts = { hideSlot: true, hideHp: true };
   try{
     const enemyId = ctx.encounter.enemy && ctx.encounter.enemy.id;
-    if(enemyId === 'acererak'){
-      enemyOpts.imageOverride = './assets/acererak.png';
+    if(enemyId === 'thug'){
+      // thug art lives in the adventure assets folder
+      enemyOpts.imageOverride = './assets/adventure/thug.png';
     }
   }catch(e){}
   const enemyCard = cardTile(ctx.encounter.enemy, enemyOpts);
-  try{ if(ctx.encounter.enemy && ctx.encounter.enemy.id === 'acererak') enemyCard.classList.add('acererak'); }catch(e){}
+  // If the session signaled an entering enemy, animate it sliding in
+  try{
+    if(ctx && ctx._enemyEntering && ctx._enemyEnterDirection === 'right'){
+      // prevent inputs during the entrance animation
+      try{ ctx._animating = true; }catch(e){}
+      try{
+        // Use a single, well-known ID so duplicate blockers cannot accumulate
+        const blockerId = 'vcg-input-blocker';
+        try{ const prev = document.getElementById(blockerId); if(prev && prev.parentNode) prev.parentNode.removeChild(prev); }catch(e){}
+        const blocker = el('div',{class:'input-blocker', id: blockerId});
+        try{ document.body.appendChild(blocker); ctx._inputBlocker = blocker; }catch(e){}
+      }catch(e){}
+      enemyCard.classList.add('slide-in-right');
+      // Trigger the transition on the next frame
+      requestAnimationFrame(()=>{
+        try{ enemyCard.classList.add('slide-in-right-active'); }catch(e){}
+      });
+      // Clear the flag after animation completes so subsequent re-renders are normal
+      setTimeout(()=>{ try{
+        // Always attempt to remove the blocker element by id (covers cases
+        // where ctx changed between renders) and clear animation flags.
+        try{ const b = document.getElementById('vcg-input-blocker'); if(b && b.parentNode) b.parentNode.removeChild(b); }catch(e){}
+        if(ctx){
+          try{ delete ctx._enemyEntering; }catch(e){}
+          try{ delete ctx._enemyEnterDirection; }catch(e){}
+          try{ if(ctx._inputBlocker && ctx._inputBlocker.parentNode) ctx._inputBlocker.parentNode.removeChild(ctx._inputBlocker); }catch(e){}
+          try{ delete ctx._inputBlocker; }catch(e){}
+          try{ ctx._animating = false; }catch(e){}
+          if(typeof ctx.onStateChange === 'function') ctx.onStateChange();
+        }
+      }catch(e){} }, 800);
+    }
+  }catch(e){}
   // insert a prominent HP label inside the enemy card before the image so it's visible
   const hpLabel = el('div',{class:'enemy-hp'},['HP: '+(ctx.encounter.enemy && ctx.encounter.enemy.hp)]);
   const enemyArea = el('div',{class:'enemy-area'},[]);
@@ -740,9 +772,14 @@ export function renderBattle(root, ctx){
     // Determine ownership: formation 1 is always available; 2 and 3 require upgrades
     let owned = true;
     try{
-      const purchased = (ctx.meta && Array.isArray(ctx.meta.purchasedUpgrades)) ? ctx.meta.purchasedUpgrades : [];
-      if(n === 2) owned = purchased.includes('formation_2');
-      if(n === 3) owned = purchased.includes('formation_3');
+      // If the session specifies allowedFormations, use that to determine availability
+      if(ctx && Array.isArray(ctx.allowedFormations)){
+        owned = ctx.allowedFormations.includes(n);
+      } else {
+        const purchased = (ctx.meta && Array.isArray(ctx.meta.purchasedUpgrades)) ? ctx.meta.purchasedUpgrades : [];
+        if(n === 2) owned = purchased.includes('formation_2');
+        if(n === 3) owned = purchased.includes('formation_3');
+      }
     }catch(e){ owned = true; }
     if(!owned){ btn.setAttribute('disabled',''); btn.classList.add('locked'); btn.title = (n===2 ? 'Purchase in Metagame to unlock Formation 2' : 'Purchase in Metagame to unlock Formation 3 (requires Formation 2)'); }
     btn.addEventListener('click', (ev)=>{
@@ -937,6 +974,7 @@ export function renderBattle(root, ctx){
   // Spacebar -> End Turn (only while this battle panel is connected)
   (function setupSpacebar(){
     const handler = (e) => {
+      if(ctx && ctx._animating) return; // ignore key input during animations
       if(!panel.isConnected){ window.removeEventListener('keydown', handler); return; }
       const isSpace = e.code === 'Space' || e.key === ' ';
       if(!isSpace) return;

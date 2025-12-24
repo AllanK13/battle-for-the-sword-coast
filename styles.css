@@ -358,6 +358,13 @@ body{background:linear-gradient(180deg,var(--bg),#071024);color:#e6eef8}
 .card img{border-radius:10px;margin-bottom:8px;/* responsive: fallback for images without explicit class */
   max-height:calc(100% - 72px);object-fit:contain;width:92%;height:auto;display:block;margin:0 auto}
 
+/* Enemy slide-in animation: start off-screen to the right, then transition to position */
+.enemy-area .card.slide-in-right{ transform: translateX(100%); opacity: 0; transition: transform 900ms cubic-bezier(.2,.9,.2,1), opacity 700ms ease; }
+.enemy-area .card.slide-in-right.slide-in-right-active{ transform: translateX(0); opacity: 1; }
+
+/* Input blocker used during animations to prevent clicks/keys */
+.input-blocker{ position:fixed; left:0; top:0; right:0; bottom:0; z-index:10060; background: transparent; }
+
 /* Prefer class-based image sizing so inline attributes are avoided in renderer */
 .card-image{border-radius:10px;margin-bottom:8px;max-height:calc(100% - 72px);object-fit:contain;width:92%;height:auto;display:block;margin:0 auto}
 .summons-small{display:flex;gap:8px;overflow-x:auto;padding:8px;align-items:flex-start;min-height:0}

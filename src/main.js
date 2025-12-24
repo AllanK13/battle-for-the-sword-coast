@@ -1,13 +1,13 @@
 import { createRNG } from './engine/rng.js';
 import { buildDeck } from './engine/deck.js';
 import { startEncounter, playHeroAttack, playHeroAction, enemyAct, isFinished, placeHero, replaceHero, useSummon, defendHero } from './engine/encounter.js';
-import { createMeta, buyUpgrade, buyLegendaryItem, loadMeta, saveMeta } from './engine/arcade_meta.js';
+import { createMeta, buyUpgrade, buyLegendaryItem, loadMeta, saveMeta, saveMetaIfAllowed, saveAdventureTemp, deleteAdventureTemp } from './engine/meta.js';
 import { AudioManager } from './engine/audio.js';
 import { register, navigate } from './ui/router.js';
 import { renderStart } from './ui/screens/arcade_start.js';
 import { renderMenu } from './ui/screens/menu.js';
 import { renderAdventureStart } from './ui/screens/adventure_start.js';
-import { renderAdventureDaggerford } from './ui/screens/adventure_daggerford.js';
+import { renderAdventureDaggerford } from './ui/screens/adventure_daggerford_scene_1.js';
 import { renderStats } from './ui/screens/arcade_stats.js';
 import { renderHowTo } from './ui/screens/arcade_howto.js';
 import { renderUpgrades } from './ui/screens/arcade_upgrades.js';
@@ -197,7 +197,7 @@ function createEncounterSession(enemyIndex, chosenIds, rng){
           // also record cumulative usage separately for Stats
           meta.totalSummonUsage = meta.totalSummonUsage || {};
           meta.totalSummonUsage[id] = (meta.totalSummonUsage[id] || 0) + 1;
-          saveMeta(meta);
+          try{ saveMetaIfAllowed(meta, ctx); }catch(e){}
         }
       }catch(e){ /* ignore */ }
       return r;
@@ -286,8 +286,35 @@ function createEncounterSession(enemyIndex, chosenIds, rng){
       }catch(e){}
       if(messages.length) ctx.setMessage(messages.join('\n'), 1000); // 1 second for enemy actions
       if(finished === 'player'){
-        // Player defeated the enemy — show an encounter-end screen summarizing the kill and IP reward
+        // Player defeated the enemy — handle wave logic or show an encounter-end screen summarizing the kill and IP reward
         const reward = encounter.enemy.ip_reward || 1;
+
+        // If a persistent enemy sequence is attached to the session, spawn the next one immediately
+        try{
+          const enemyKeyNow = encounter.enemy.id || encounter.enemy.name || 'unknown';
+          if(ctx && Array.isArray(ctx.enemySequence) && ctx.enemySequence.length > 0){
+            // record defeated enemy in the run summary but DO NOT award IP yet
+            runSummary.defeated.push(enemyKeyNow);
+            // get next enemy id and replace enemy in-place on the encounter state
+            const nextId = ctx.enemySequence.shift();
+            const nextDef = (data.enemies||[]).find(e => e && e.id === nextId) || null;
+            if(nextDef){
+              encounter.enemy = { ...nextDef };
+              // mark enemy as entering from the right so UI can animate it
+              try{ ctx._enemyEntering = true; ctx._enemyEnterDirection = 'right'; }catch(e){}
+              if(typeof encounter.enemy.maxHp !== 'number') encounter.enemy.maxHp = typeof encounter.enemy.hp === 'number' ? encounter.enemy.hp : (encounter.enemy.maxHp || null);
+              // reset encounter-specific runtime counters but preserve playfield/deck
+              encounter.turn = 0;
+              encounter.ap = encounter.apPerTurn || (meta.apPerTurn || 3);
+              ctx.encounter = encounter;
+              if(ctx.setMessage) ctx.setMessage('Next enemy: '+(encounter.enemy.name||encounter.enemy.id));
+              ctx.onStateChange();
+              return;
+            }
+          }
+        }catch(e){}
+
+        // No sequence (or sequence exhausted) — show the encounter end screen. Respect session flag to suppress IP.
         // temporarily disable state updates while the encounter-end screen is shown
         const prevOnState = ctx.onStateChange;
         const prevSetMessage = ctx.setMessage;
@@ -299,26 +326,32 @@ function createEncounterSession(enemyIndex, chosenIds, rng){
           enemy: encounter.enemy,
           reward,
           runSummary,
-          showIp: true,
+          showIp: !(ctx && ctx.suppressIpOnEncounterEnd),
           onContinue: ()=>{
             // restore handlers
             ctx.onStateChange = prevOnState;
             ctx.setMessage = prevSetMessage;
-            // record defeated enemy and award IP
+            // record defeated enemy and award IP only if allowed
             const enemyKey = encounter.enemy.id || encounter.enemy.name || 'unknown';
             runSummary.defeated.push(enemyKey);
-            runSummary.ipEarned = (runSummary.ipEarned||0) + reward;
-            meta.ip += reward;
-            meta.totalIpEarned = (meta.totalIpEarned||0) + reward;
-            // update persistent stats
+            if(encounterEndCtx.showIp){
+              runSummary.ipEarned = (runSummary.ipEarned||0) + reward;
+              meta.ip += reward;
+              meta.totalIpEarned = (meta.totalIpEarned||0) + reward;
+            }
+            // update persistent stats (only update global save for arcade runs)
             try{
-              meta.encountersBeaten = (meta.encountersBeaten || 0) + 1;
-              // furthest reached enemy: use current index
-              meta.furthestReachedEnemy = Math.max((meta.furthestReachedEnemy||0), currentEnemyIndex);
-              // increment per-enemy defeat count
-              meta.enemyDefeatCounts = meta.enemyDefeatCounts || {};
-              meta.enemyDefeatCounts[enemyKey] = (meta.enemyDefeatCounts[enemyKey] || 0) + 1;
-              saveMeta(meta);
+              if(!ctx || !ctx.isAdventure){
+                meta.encountersBeaten = (meta.encountersBeaten || 0) + 1;
+                // furthest reached enemy: use current index
+                meta.furthestReachedEnemy = Math.max((meta.furthestReachedEnemy||0), currentEnemyIndex);
+                // increment per-enemy defeat count
+                meta.enemyDefeatCounts = meta.enemyDefeatCounts || {};
+                meta.enemyDefeatCounts[enemyKey] = (meta.enemyDefeatCounts[enemyKey] || 0) + 1;
+                saveMeta(meta);
+              } else {
+                try{ ctx.meta = ctx.meta || {}; ctx.meta.encountersBeaten = (ctx.meta.encountersBeaten||0) + 1; ctx.meta.enemyDefeatCounts = ctx.meta.enemyDefeatCounts || {}; ctx.meta.enemyDefeatCounts[enemyKey] = (ctx.meta.enemyDefeatCounts[enemyKey] || 0) + 1; }catch(e){}
+              }
             }catch(e){ /* ignore */ }
             // advance to next enemy according to the arcade path if present
             currentEnemyIndex += 1;
@@ -347,19 +380,27 @@ function createEncounterSession(enemyIndex, chosenIds, rng){
                 const cardDefs = (data.cards || []).concat(legendaryCards);
                 deck = buildDeck(cardDefs, rebuildIds, RNG);
               }catch(e){ console.warn('Failed to rebuild deck for next encounter', e); }
-              encounter = startEncounter({...enemy}, deck, RNG, { apPerTurn: meta.apPerTurn || 3 });
+              // choose AP per turn depending on session type (adventure sessions use their own AP)
+              const apPerTurnForNext = (ctx && ctx.isAdventure) ? (ctx.encounter && ctx.encounter.apPerTurn ? ctx.encounter.apPerTurn : 3) : (meta.apPerTurn || 3);
+              encounter = startEncounter({...enemy}, deck, RNG, { apPerTurn: apPerTurnForNext });
               ctx.encounter = encounter;
               ctx.currentEnemyIndex = currentEnemyIndex;
               // persist updated IP immediately
-              try{ saveMeta(meta); }catch(e){ console.warn('saveMeta failed', e); }
+              try{ if(!ctx || !ctx.isAdventure) saveMeta(meta); }catch(e){ console.warn('saveMeta failed', e); }
               if(ctx.setMessage) ctx.setMessage('Next enemy: '+(enemy.name||enemy.id));
               ctx.onStateChange();
               return;
             } else {
               // no more enemies -> end run
-              try{ meta.runs = (meta.runs||0) + 1; saveMeta(meta); }catch(e){}
-              const endCtx = { data, runSummary, showIp: true, onRestart: ()=>{ try{ meta.summonUsage = {}; saveMeta(meta); }catch(e){}; navigate('arcade_start'); } };
+              try{ if(!ctx || !ctx.isAdventure){ meta.runs = (meta.runs||0) + 1; saveMeta(meta); } else { try{ ctx.meta = ctx.meta || {}; ctx.meta.runs = (ctx.meta.runs||0) + 1; }catch(e){} } }catch(e){}
+              const endCtx = { data, runSummary, showIp: true, onRestart: ()=>{ try{ meta.summonUsage = {}; try{ saveMetaIfAllowed(meta, ctx); }catch(e){} }catch(e){}; navigate('arcade_start'); } };
               // prevent any pending timeouts or future onStateChange calls from re-rendering the battle
+              if(ctx && ctx.isAdventure){
+                ctx.onStateChange = ()=>{};
+                ctx.setMessage = ()=>{};
+                navigate('adventure_start');
+                return;
+              }
               ctx.onStateChange = ()=>{};
               ctx.setMessage = ()=>{};
               navigate('arcade_end', endCtx);
@@ -376,26 +417,43 @@ function createEncounterSession(enemyIndex, chosenIds, rng){
         // update run stats (failed run) and compute V interest if applicable
         let vInterest = 0;
         try{
-          meta.runs = (meta.runs||0) + 1;
-          meta.furthestReachedEnemy = Math.max((meta.furthestReachedEnemy||0), currentEnemyIndex);
-          // increment per-enemy victory count
-          meta.enemyVictoryCounts = meta.enemyVictoryCounts || {};
-          meta.enemyVictoryCounts[enemyKey] = (meta.enemyVictoryCounts[enemyKey] || 0) + 1;
-          // If player purchased invest_v, award 25% of run IP (rounded down)
-          if(meta && Array.isArray(meta.purchasedUpgrades) && meta.purchasedUpgrades.includes('invest_v')){
-            vInterest = Math.floor((runSummary.ipEarned||0) * 0.15);
-            meta.ip += vInterest;
-            meta.totalIpEarned = (meta.totalIpEarned||0) + vInterest;
+          if(!ctx || !ctx.isAdventure){
+            meta.runs = (meta.runs||0) + 1;
+            meta.furthestReachedEnemy = Math.max((meta.furthestReachedEnemy||0), currentEnemyIndex);
+            // increment per-enemy victory count
+            meta.enemyVictoryCounts = meta.enemyVictoryCounts || {};
+            meta.enemyVictoryCounts[enemyKey] = (meta.enemyVictoryCounts[enemyKey] || 0) + 1;
+            // If player purchased invest_v, award 25% of run IP (rounded down)
+            if(meta && Array.isArray(meta.purchasedUpgrades) && meta.purchasedUpgrades.includes('invest_v')){
+              vInterest = Math.floor((runSummary.ipEarned||0) * 0.15);
+              meta.ip += vInterest;
+              meta.totalIpEarned = (meta.totalIpEarned||0) + vInterest;
+            }
+            saveMeta(meta);
+          } else {
+            try{ ctx.meta = ctx.meta || {}; ctx.meta.runs = (ctx.meta.runs||0) + 1; ctx.meta.furthestReachedEnemy = Math.max((ctx.meta.furthestReachedEnemy||0), currentEnemyIndex); ctx.meta.enemyVictoryCounts = ctx.meta.enemyVictoryCounts || {}; ctx.meta.enemyVictoryCounts[enemyKey] = (ctx.meta.enemyVictoryCounts[enemyKey] || 0) + 1; }catch(e){}
           }
-          saveMeta(meta);
         }catch(e){}
         // capture the last battle history message (if any) so the end screen
         // can show what dealt the killing blow
         const lastHistoryMessage = (ctx && Array.isArray(ctx.messageHistory) && ctx.messageHistory.length>0) ? ctx.messageHistory[0].text : null;
-        const endCtx = { data, runSummary, vInterest, lastHistoryMessage, showIp: true, onRestart: ()=>{ try{ meta.summonUsage = {}; saveMeta(meta); }catch(e){}; navigate('arcade_start'); } };
+        const endCtx = {
+          data,
+          runSummary,
+          vInterest,
+          lastHistoryMessage,
+          showIp: !(ctx && ctx.isAdventure),
+          onRestart: ()=>{
+            try{ meta.summonUsage = {}; try{ saveMetaIfAllowed(meta, ctx); }catch(e){} }catch(e){}
+            if(ctx && ctx.isAdventure) navigate('adventure_start');
+            else navigate('arcade_start');
+          }
+        };
         // prevent any pending timeouts or future onStateChange calls from re-rendering the battle
         ctx.onStateChange = ()=>{};
-        ctx.setMessage = ()=>{};        
+        ctx.setMessage = ()=>{};
+        // Always show the end screen; the end screen's restart handler will return
+        // to the appropriate start screen depending on session type.
         navigate('arcade_end', endCtx);
         return;
       }
@@ -552,6 +610,8 @@ function appStart(){
 
   // Adventure Mode start screen
   register('adventure_start', (root)=> {
+    // Remove any leftover temporary adventure save when entering the adventure start screen
+    try{ deleteAdventureTemp(); }catch(e){}
     try{
       const musicCandidates = ['./assets/music/menu.mp3','assets/music/menu.mp3','/assets/music/menu.mp3'];
       AudioManager.init(musicCandidates[0], { autoplay:true, loop:true });
@@ -561,20 +621,45 @@ function appStart(){
       meta,
       onBack: ()=> navigate('menu'),
       onStartAdventure: (id)=>{
-        try{ if(typeof id === 'string') console.log('Start adventure:', id); }catch(e){}
         // Navigate to cinematic for the selected adventure and pass a completion callback
         navigate('adventure_daggerford', {
           data, meta,
           onCinematicComplete: ()=>{
-            // Ensure starters and summons are available in meta
-            try{ meta.ownedCards = meta.ownedCards || []; if(!meta.ownedCards.includes('cree_teen')) meta.ownedCards.push('cree_teen'); if(!meta.ownedCards.includes('shalendra')) meta.ownedCards.push('shalendra'); }catch(e){}
-            try{ meta.ownedSummons = meta.ownedSummons || []; ['garon','durnan','volo'].forEach(id=>{ if(!meta.ownedSummons.includes(id)) meta.ownedSummons.push(id); }); }catch(e){}
+            // Prepare a session-local meta so Adventure runs don't touch the global save
+            // Provide starter cards and summons for the adventure session only
+            try{ /* session variable will be created after createEncounterSession */ }catch(e){}
             // Create RNG and start the first encounter with chosen heroes
             try{
               const rng = createRNG();
               const chosen = ['cree_teen','shalendra'];
-              const ctx = createEncounterSession(0, chosen, rng);
-              navigate('battle', ctx);
+              const session = createEncounterSession(0, chosen, rng);
+              // mark this session as an adventure so screens can avoid writing global save
+                try{ session.ctx.isAdventure = true; }catch(e){}
+                try{ session.ctx.meta = session.ctx.meta || {}; session.ctx.meta.ownedCards = session.ctx.meta.ownedCards || []; if(!session.ctx.meta.ownedCards.includes('cree_teen')) session.ctx.meta.ownedCards.push('cree_teen'); if(!session.ctx.meta.ownedCards.includes('shalendra')) session.ctx.meta.ownedCards.push('shalendra'); }catch(e){}
+              try{ session.ctx.meta.ownedSummons = session.ctx.meta.ownedSummons || []; ['garon','durnan','volo'].forEach(id=>{ if(!session.ctx.meta.ownedSummons.includes(id)) session.ctx.meta.ownedSummons.push(id); }); }catch(e){}
+              try{ session.ctx.meta.gold = (typeof session.ctx.meta.gold === 'number') ? session.ctx.meta.gold : 0; }catch(e){}
+              // persist the initial adventure session meta to the temporary adventure save
+              try{ saveMetaIfAllowed(session.ctx.meta, session.ctx); }catch(e){}
+              // Attach a persistent enemy sequence for the cinematic: three thugs in a row
+              try{
+                session.ctx.enemySequence = ['thug','thug','thug'];
+                session.ctx.suppressIpOnEncounterEnd = true; // final end should hide/skip IP reward
+                // Adventure-specific restrictions: limit formations to 1 and 2, and disable legendary summons
+                session.ctx.allowedFormations = [1,2];
+                session.ctx.disableLegendarySummons = true;
+                // pop the first enemy id and set it onto the active encounter so the battle shows it immediately
+                const firstId = (Array.isArray(session.ctx.enemySequence) && session.ctx.enemySequence.length>0) ? session.ctx.enemySequence.shift() : null;
+                if(firstId){
+                  const firstDef = (data.enemies||[]).find(e=> e && e.id === firstId) || null;
+                  if(firstDef){
+                    session.ctx.encounter.enemy = { ...firstDef };
+                    if(typeof session.ctx.encounter.enemy.maxHp !== 'number') session.ctx.encounter.enemy.maxHp = typeof session.ctx.encounter.enemy.hp === 'number' ? session.ctx.encounter.enemy.hp : (session.ctx.encounter.enemy.maxHp || null);
+                    // enforce 3 AP for this adventure session
+                    try{ session.ctx.encounter.apPerTurn = 3; session.ctx.encounter.ap = 3; }catch(e){}
+                  }
+                }
+              }catch(e){}
+              navigate('battle', session.ctx);
             }catch(e){ navigate('menu'); }
           }
         });

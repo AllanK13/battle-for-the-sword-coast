@@ -6,7 +6,6 @@ export function createMeta(){
   return {
     ip: 0,
     totalIpEarned: 0,
-    gold: 0,
     legendaryUnlocked: false,
     // enable debug UI when true
     debugEnabled: false,

@@ -1,5 +1,5 @@
 import { el } from '../renderer.js';
-import { createMeta, saveMeta, saveSlot, loadSlot, deleteSlot } from '../../engine/arcade_meta.js';
+import { createMeta, saveMeta, saveMetaIfAllowed, saveSlot, loadSlot, deleteSlot } from '../../engine/meta.js';
 import { AudioManager } from '../../engine/audio.js';
 
 function kvList(obj){
@@ -177,7 +177,7 @@ export function renderStats(root, ctx){
         const payload = loadSlot(i);
         if(!payload || !payload.meta) return alert('Invalid save data');
         if(ctx && ctx.meta){ Object.keys(ctx.meta).forEach(k=>{ delete ctx.meta[k]; }); Object.entries(payload.meta).forEach(([k,v])=> ctx.meta[k]=v); }
-        saveMeta(ctx.meta);
+        try{ saveMetaIfAllowed(ctx.meta, ctx); }catch(e){}
         alert('Loaded slot '+i);
         // refresh displayed slot info in-place
         const loaded = loadSlot(i);
