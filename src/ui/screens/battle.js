@@ -110,7 +110,7 @@ function slotNode(slotObj, idx, handlers={}, highlight=false, targetHighlight=fa
               titleText = 'Assist — +' + Math.round((ic && ic.amount? ic.amount*100 : 20)) + '% hit';
               break;
             case 'defend':
-              titleText = 'Defend — Dodge (increased chance to avoid next attack)';
+              titleText = 'Dodge - 50% evade chance, half damage from AoE';
               break;
             case 'help':
               titleText = 'Help — Preferred target (enemy more likely to attack)';

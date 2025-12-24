@@ -88,7 +88,7 @@ export function renderUpgrades(root, ctx){
       // Formation 3 requires Formation 2 to be purchased first
       prereqLocked = true; prereqMessage = 'Requires Formation 2';
     } else if(u.id === 'slot_plus3' && !purchasedList.includes('slot_9')){
-      prereqLocked = true; prereqMessage = 'Requires previous slot upgrades (Slot 9)';
+      prereqLocked = true; prereqMessage = 'Requires all previous slot upgrades';
     }
     const cost = Number(u.ip_cost||0);
     const affordable = ctx.meta && (ctx.meta.ip >= cost);

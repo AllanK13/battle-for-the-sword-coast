@@ -7,6 +7,7 @@ import { register, navigate } from './ui/router.js';
 import { renderStart } from './ui/screens/arcade_start.js';
 import { renderMenu } from './ui/screens/menu.js';
 import { renderAdventureStart } from './ui/screens/adventure_start.js';
+import { renderAdventureDaggerford } from './ui/screens/adventure_daggerford.js';
 import { renderStats } from './ui/screens/arcade_stats.js';
 import { renderHowTo } from './ui/screens/arcade_howto.js';
 import { renderUpgrades } from './ui/screens/arcade_upgrades.js';
@@ -540,6 +541,15 @@ function appStart(){
     });
   });
 
+  // Cinematic screen for Streets of Daggerford
+  register('adventure_daggerford', (root, params)=>{
+    try{
+      const musicCandidates = ['./assets/music/town.mp3','assets/music/town.mp3','/assets/music/town.mp3'];
+      AudioManager.init(musicCandidates[0], { autoplay:true, loop:true });
+    }catch(e){}
+    return renderAdventureDaggerford(root, params || {});
+  });
+
   // Adventure Mode start screen
   register('adventure_start', (root)=> {
     try{
@@ -551,9 +561,23 @@ function appStart(){
       meta,
       onBack: ()=> navigate('menu'),
       onStartAdventure: (id)=>{
-        // Default behavior: navigate back to menu; callers can override via ctx
         try{ if(typeof id === 'string') console.log('Start adventure:', id); }catch(e){}
-        navigate('menu');
+        // Navigate to cinematic for the selected adventure and pass a completion callback
+        navigate('adventure_daggerford', {
+          data, meta,
+          onCinematicComplete: ()=>{
+            // Ensure starters and summons are available in meta
+            try{ meta.ownedCards = meta.ownedCards || []; if(!meta.ownedCards.includes('cree_teen')) meta.ownedCards.push('cree_teen'); if(!meta.ownedCards.includes('shalendra')) meta.ownedCards.push('shalendra'); }catch(e){}
+            try{ meta.ownedSummons = meta.ownedSummons || []; ['garon','durnan','volo'].forEach(id=>{ if(!meta.ownedSummons.includes(id)) meta.ownedSummons.push(id); }); }catch(e){}
+            // Create RNG and start the first encounter with chosen heroes
+            try{
+              const rng = createRNG();
+              const chosen = ['cree_teen','shalendra'];
+              const ctx = createEncounterSession(0, chosen, rng);
+              navigate('battle', ctx);
+            }catch(e){ navigate('menu'); }
+          }
+        });
       }
     });
   });

@@ -142,7 +142,7 @@
     "abilities": [
       {
         "type": "Support",
-        "ability": "Refresh Volo's power",
+        "ability": "Refresh Volo's power (0 AP)",
         "name": "Refresh Volo's power (0 AP)",
         "actionType": "support",
         "primary": true,
@@ -289,7 +289,7 @@
     ],
     "tier": 2,
     "slot_cost": 2.0,
-    "ip_cost": 15,
+    "ip_cost": 20,
     "id": "eddie",
     "starter": false
   },
@@ -473,7 +473,7 @@
   {
     "name": "Sylara",
     "type": "DPS",
-    "hp": 18.0,
+    "hp": 22.0,
     "abilities": [
       {
         "type": "DPS",
@@ -493,7 +493,7 @@
   {
     "name": "Fjlurganmyr",
     "type": "DPS",
-    "hp": 20.0,
+    "hp": 22.0,
     "abilities": [
       {
         "type": "DPS",
@@ -513,7 +513,7 @@
   {
     "name": "Br'er",
     "type": "Support",
-    "hp": 20.0,
+    "hp": 22.0,
     "abilities": [
       {
         "type": "Support",
@@ -526,7 +526,7 @@
     ],
     "tier": 4,
     "slot_cost": 4.0,
-    "ip_cost": 75,
+    "ip_cost": 85,
     "id": "brer",
     "starter": false
   }

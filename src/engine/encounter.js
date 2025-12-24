@@ -602,6 +602,8 @@ export function endPlayerTurn(state){
 }
 
 export function enemyAct(state){
+  // If the enemy is already dead, do nothing — avoid an extra attack after death
+  try{ if(state && state.enemy && typeof state.enemy.hp === 'number' && state.enemy.hp <= 0){ return { did: 'enemyAct', events: [] }; } }catch(e){}
   state.turn++;
   // Decrement hero stun counters at the start of the enemy turn (stuns prevent one player turn)
   try{
