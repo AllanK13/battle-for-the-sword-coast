@@ -52,28 +52,10 @@ import {
 const data = {};
 let meta = loadMeta();
 
-// Debug flag: allow enabling via meta, localStorage key `vcg_debug`, or URL `?debug=1`.
+// Debug flag: only respect the persisted arcade meta `debugEnabled` flag.
 (function applyDebugFlag(){
   try{
-    const urlDebug = (typeof window !== 'undefined' && window.location && new URLSearchParams(window.location.search).get('debug') === '1');
-    const stored = (typeof localStorage !== 'undefined' && localStorage.getItem('vcg_debug') === '1');
-    // If `meta.debugEnabled` is an explicit boolean (true/false), honor it.
-    // Otherwise fall back to URL or stored local flag.
-    if (typeof meta.debugEnabled === 'boolean') {
-      meta.debugEnabled = meta.debugEnabled;
-    } else {
-      meta.debugEnabled = urlDebug || stored;
-    }
-    // helper to toggle and persist the flag from the console: `toggleDebug(true)` / `toggleDebug(false)`
-    window.toggleDebug = function(on){
-      try{
-        if(on) localStorage.setItem('vcg_debug','1'); else localStorage.removeItem('vcg_debug');
-        meta.debugEnabled = !!on;
-        try{ saveMeta(meta); }catch(e){}
-        if(typeof window !== 'undefined' && window.location) window.location.reload();
-      }catch(e){ /* ignore */ }
-    };
-    window.isDebugEnabled = function(){ return Boolean(meta.debugEnabled); };
+    meta.debugEnabled = !!meta.debugEnabled;
   }catch(e){ /* ignore */ }
 })();
 
@@ -734,20 +716,21 @@ function appStart(){
           else window.alert('Cannot purchase: insufficient IP');
         }
         // re-render the upgrades screen
-        navigate('arcade_upgrades');
+          return res || { success:false };
       },
       buyLegendary(itemId){
         // look up the item in cards, summons, or legendary lists
         const findIn = (arr)=> (arr||[]).find(x=>x.id===itemId || x.name===itemId || x.upgrade===itemId);
         const item = findIn(data.cards) || findIn(data.summons) || findIn(data.legendary) || findIn(data.upgrades);
-        if(!item) return;
+        if(!item) return { success:false, reason:'not_found' };
         const res = buyLegendaryItem(meta, item);
         try{ saveMeta(meta); }catch(e){}
         if(typeof window !== 'undefined' && window.alert){
           if(res && res.success) window.alert('Purchased '+(item.name||item.upgrade||item.id));
           else window.alert('Cannot purchase: insufficient IP');
         }
-        navigate('arcade_upgrades');
+        // return the result so the UI can update only the affected item
+        return res || { success:false };
       },
       onBack: ()=> navigate('arcade_start')
     });

@@ -1,6 +1,7 @@
 import { el } from '../renderer.js';
 import { navigate } from '../router.js';
 import { AudioManager } from '../../engine/audio.js';
+import { loadMeta } from '../../engine/meta.js';
 import { splitNarrative } from './adventures/text_split.js';
 
 export function renderAdventureStart(root, ctx = {}){
@@ -68,7 +69,8 @@ export function renderAdventureStart(root, ctx = {}){
 
 	// Debug navigation panel (visible when debug enabled)
 	try{
-		const debugOn = (ctx && ctx.meta && ctx.meta.debugEnabled) || (typeof window !== 'undefined' && typeof window.isDebugEnabled === 'function' && window.isDebugEnabled());
+		const debugOn = (ctx && ctx.meta && ctx.meta.debugEnabled)
+			|| (typeof loadMeta === 'function' && loadMeta().debugEnabled);
 		if(debugOn){
 			const dbg = el('div',{style:'position:fixed;left:18px;bottom:18px;z-index:10050;padding:10px;border-radius:8px;background:rgba(0,0,0,0.55);color:#fff;font-size:13px;display:flex;gap:8px;align-items:center'},[]);
 			const screens = [
