@@ -2,6 +2,8 @@ import { el, cardTile } from '../renderer.js';
 import { navigate } from '../router.js';
 import { AudioManager } from '../../engine/audio.js';
 import { saveMeta, saveMetaIfAllowed } from '../../engine/meta.js';
+import { getStatusIconData, getGriffVariant, getAbilityButtonConfig } from '../battle-helpers.js';
+import { disableStateHandlers, getAbilityApCost } from '../../engine/helpers.js';
 
 function slotNode(slotObj, idx, handlers={}, highlight=false, targetHighlight=false, ctx=null){
   const container = el('div',{class:'card-wrap panel'});
@@ -22,24 +24,8 @@ function slotNode(slotObj, idx, handlers={}, highlight=false, targetHighlight=fa
   // if this hero is Griff and the encounter selected a variant, pass imageOverride
   try{
     const id = (slotObj.base && slotObj.base.id) ? slotObj.base.id : null;
-    // For Griff, reuse a single persisted variant so re-renders (e.g. button presses)
-    // don't change the image. Prefer ctx.meta.griffVariant, then localStorage,
-    // then any encounter-provided _griffImage, otherwise pick one once and store it.
     if(id === 'griff'){
-      // Prefer encounter-level variant (set when the battle starts) so image
-      // remains stable for the duration of the encounter. Fall back to
-      // meta/localStorage only if encounter variant is not present.
-      let v = null;
-      try{ if(ctx && ctx.encounter && typeof ctx.encounter._griffVariant === 'number') v = ctx.encounter._griffVariant; }catch(e){}
-      try{ if(!v && ctx && ctx.meta && ctx.meta.griffVariant) v = ctx.meta.griffVariant; }catch(e){}
-      try{ if(!v && typeof localStorage !== 'undefined'){ const ls = localStorage.getItem('griffVariant'); if(ls) v = Number(ls); } }catch(e){}
-      try{ if(!v && ctx && ctx.encounter && ctx.encounter._griffImage){ const m = String(ctx.encounter._griffImage).match(/griff(\d+)\.png/i); if(m && m[1]) v = Number(m[1]); } }catch(e){}
-      if(!v){
-        // As a last resort, pick one for this encounter and persist it on the encounter
-        v = Math.floor(Math.random() * 7) + 1;
-        try{ if(ctx && ctx.encounter) ctx.encounter._griffVariant = v; }catch(e){}
-      }
-      opts.imageOverride = './assets/griff' + v + '.png';
+      opts.imageOverride = getGriffVariant(ctx);
     }
   }catch(e){}
   // build action buttons as the card footer so they sit close to the HP/stats
@@ -48,30 +34,14 @@ function slotNode(slotObj, idx, handlers={}, highlight=false, targetHighlight=fa
   try{
     if(slotObj.base && Array.isArray(slotObj.base.abilities) && slotObj.base.abilities.length>0){
       slotObj.base.abilities.forEach((a, ai)=>{
-        // Prefer the explicit ability `name` when present, otherwise fall back
-        // to the legacy `ability` text or a generic label.
-        const label = (a && a.name) ? a.name : ((a && a.ability) ? a.ability : ('Ability '+(ai+1)));
-        const b = el('button',{class:'btn slot-action ability-btn', 'data-ability-index': String(ai)},[ label ]);
-        // disable if not enough AP for this specific ability (allow ap_cost:0 abilities)
-        try{
-          const reqAp = (a && typeof a.ap_cost === 'number') ? Number(a.ap_cost) : ((a && typeof a.apCost === 'number') ? Number(a.apCost) : 1);
-          if(handlers.ap !== undefined && handlers.ap < reqAp) b.setAttribute('disabled','');
-        }catch(e){ if(handlers.ap !== undefined && handlers.ap < 1) b.setAttribute('disabled',''); }
-        // disable if ability is on cooldown (per-hero id)
-        try{
-          // ability cooldowns are tracked per-cardId+ability index ("<cardId>:ability<index>")
-          const inst = (slotObj && slotObj.cardId) ? slotObj.cardId : String(idx);
-          const key = String(inst) + ':ability' + String(ai);
-          const cd = (ctx && ctx.encounter && ctx.encounter.abilityCooldowns) ? Number(ctx.encounter.abilityCooldowns[key] || 0) : 0;
-          if(cd > 0){
-            b.setAttribute('disabled','');
-            b.setAttribute('title', 'Cooldown: '+String(cd)+' turns');
-            try{
-              const badge = el('span',{class:'ability-cooldown-badge'},[ String(cd) ]);
-              b.appendChild(badge);
-            }catch(e){}
-          }
-        }catch(e){}
+        const btnConfig = getAbilityButtonConfig(a, ai, slotObj, idx, handlers.ap, ctx);
+        const b = el('button', btnConfig.attrs, [ btnConfig.label ]);
+        if(btnConfig.disabled) b.setAttribute('disabled','');
+        if(btnConfig.title) b.setAttribute('title', btnConfig.title);
+        if(btnConfig.cooldownBadge){
+          const badge = el('span',{class:'ability-cooldown-badge'},[ btnConfig.cooldownBadge ]);
+          b.appendChild(badge);
+        }
         b.addEventListener('click',(e)=>{ e.stopPropagation(); if(handlers.onAction) handlers.onAction(idx, ai); });
         btns.appendChild(b);
       });
@@ -101,41 +71,8 @@ function slotNode(slotObj, idx, handlers={}, highlight=false, targetHighlight=fa
       const overlay = el('div',{class:'status-overlay'} ,[]);
       icons.forEach(ic=>{
         try{
-          const id = ic && ic.id ? String(ic.id) : '?';
-          const emoji = (id === 'assist') ? '🎯' : (id === 'defend') ? '💨' : (id === 'help') ? '🕷️' : (id === 'protected') ? '🌪' : (id === 'lumalia') ? '🕓' : (id === 'stunned') ? '💫' : (id === 'enfeebled') ? '⬇️' : (id === 'blind') ? '😵' : id[0];
-          // Build a human-readable tooltip title and aria-label
-          let titleText = '';
-          switch(id){
-            case 'assist':
-              titleText = 'Assist — +' + Math.round((ic && ic.amount? ic.amount*100 : 20)) + '% hit';
-              break;
-            case 'defend':
-              titleText = 'Dodge - 50% evade chance, half damage from AoE';
-              break;
-            case 'help':
-              titleText = 'Help — Preferred target (enemy more likely to attack)';
-              break;
-            case 'protected':
-              titleText = 'Gaseous Form — Invulnerable' + (ic && ic.turns ? (' ('+ic.turns+' turn'+(ic.turns>1?'s':'')+')') : '');
-              break;
-            case 'stunned':
-              titleText = 'Stunned — cannot act' + (ic && ic.turns ? (' for '+ic.turns+' turn'+(ic.turns>1?'s':'')) : '');
-              break;
-            case 'enfeebled':
-              titleText = 'Enfeebled — physical attacks deal half damage' + (ic && ic.turns ? (' for '+ic.turns+' turn'+(ic.turns>1?'s':'')) : '');
-              break;
-            case 'lumalia':
-              titleText = 'Lumalia — Pending ' + (ic && ic.dmg ? ic.dmg : '') + ' damage';
-              break;
-            case 'blind':
-            case 'blinded':
-              titleText = 'Blinded — 50% miss chance' + (ic && ic.turns ? (' for '+ic.turns+' turn'+(ic.turns>1?'s':'')) : '');
-              break;
-            default:
-              titleText = (id.charAt(0).toUpperCase()+id.slice(1)) + (ic && ic.source ? (' ('+ic.source+')') : '');
-              break;
-          }
-          const icEl = el('div',{class:'status-icon', title: titleText, 'aria-label': titleText},[ emoji ]);
+          const statusData = getStatusIconData(ic);
+          const icEl = el('div',{class:'status-icon', title: statusData.title, 'aria-label': statusData.title},[ statusData.emoji ]);
           overlay.appendChild(icEl);
         }catch(e){}
       });
@@ -166,6 +103,8 @@ function slotNode(slotObj, idx, handlers={}, highlight=false, targetHighlight=fa
 }
 
 export function renderBattle(root, ctx){
+  // Safety: remove any leftover input-blocker from previous animations
+  try{ const prev = document.getElementById('vcg-input-blocker'); if(prev && prev.parentNode) prev.parentNode.removeChild(prev); }catch(e){}
   // Switch music to the appropriate battle track for this encounter.
   try{
     const enemy = (ctx && ctx.encounter && ctx.encounter.enemy) ? ctx.encounter.enemy : null;
@@ -203,7 +142,7 @@ export function renderBattle(root, ctx){
     try{ if(ctx && ctx.meta) { ctx.meta.summonUsage = {}; try{ saveMetaIfAllowed(ctx.meta, ctx); }catch(e){} } }catch(e){ console.debug('GiveUp: saveMeta failed', e); }
     try{
       // Prevent any pending timeouts or callbacks from re-rendering the battle
-      try{ if(ctx){ ctx.onStateChange = ()=>{}; ctx.setMessage = ()=>{}; } }catch(e){}
+      try{ if(ctx){ disableStateHandlers(ctx); } }catch(e){}
       navigate('arcade_start');
       console.debug('GiveUp: navigated to arcade_start');
       return;
@@ -346,7 +285,8 @@ export function renderBattle(root, ctx){
       btn.addEventListener('click',()=>{
         // prefer structured ability definition on summons too, fallback to legacy
         const sPrimary = (s && Array.isArray(s.abilities) && s.abilities.length>0) ? (s.abilities.find(a=>a.primary) || s.abilities[0]) : null;
-        const needsTarget = /one target|target/i.test((sPrimary && sPrimary.ability) ? sPrimary.ability : (s.ability||'')) || s.id === 'blackrazor';
+        const textAbility = (sPrimary && sPrimary.ability) ? sPrimary.ability : (s.ability||'');
+        const needsTarget = Boolean(s.requiresTarget) || /one target|target/i.test(textAbility) || s.id === 'blackrazor';
         if(needsTarget){
           ctx.pendingSummon = { id: s.id, name: s.name };
           if(ctx.setMessage) ctx.setMessage('Click a space to target '+s.name);
@@ -378,34 +318,17 @@ export function renderBattle(root, ctx){
   // If the session signaled an entering enemy, animate it sliding in
   try{
     if(ctx && ctx._enemyEntering && ctx._enemyEnterDirection === 'right'){
-      // prevent inputs during the entrance animation
+      // animate without disabling input
       try{ ctx._animating = true; }catch(e){}
-      try{
-        // Use a single, well-known ID so duplicate blockers cannot accumulate
-        const blockerId = 'vcg-input-blocker';
-        try{ const prev = document.getElementById(blockerId); if(prev && prev.parentNode) prev.parentNode.removeChild(prev); }catch(e){}
-        const blocker = el('div',{class:'input-blocker', id: blockerId});
-        try{ document.body.appendChild(blocker); ctx._inputBlocker = blocker; }catch(e){}
-      }catch(e){}
       enemyCard.classList.add('slide-in-right');
-      // Trigger the transition on the next frame
+      // Trigger the transition on the next frame and clear flags so re-renders don't restart
       requestAnimationFrame(()=>{
         try{ enemyCard.classList.add('slide-in-right-active'); }catch(e){}
+        // Clear entrance flags after transition starts so re-renders during animation don't restart it
+        try{ if(ctx){ delete ctx._enemyEntering; delete ctx._enemyEnterDirection; } }catch(e){}
       });
-      // Clear the flag after animation completes so subsequent re-renders are normal
-      setTimeout(()=>{ try{
-        // Always attempt to remove the blocker element by id (covers cases
-        // where ctx changed between renders) and clear animation flags.
-        try{ const b = document.getElementById('vcg-input-blocker'); if(b && b.parentNode) b.parentNode.removeChild(b); }catch(e){}
-        if(ctx){
-          try{ delete ctx._enemyEntering; }catch(e){}
-          try{ delete ctx._enemyEnterDirection; }catch(e){}
-          try{ if(ctx._inputBlocker && ctx._inputBlocker.parentNode) ctx._inputBlocker.parentNode.removeChild(ctx._inputBlocker); }catch(e){}
-          try{ delete ctx._inputBlocker; }catch(e){}
-          try{ ctx._animating = false; }catch(e){}
-          if(typeof ctx.onStateChange === 'function') ctx.onStateChange();
-        }
-      }catch(e){} }, 800);
+      // Clear animation flag after animation completes (no re-render needed)
+      setTimeout(()=>{ try{ if(ctx){ ctx._animating = false; } }catch(e){} }, 800);
     }
   }catch(e){}
   // insert a prominent HP label inside the enemy card before the image so it's visible
@@ -472,10 +395,10 @@ export function renderBattle(root, ctx){
         try{
           if(typeof abilityIndex === 'number' && hero && hero.base && Array.isArray(hero.base.abilities) && hero.base.abilities[abilityIndex]){
             const pa = hero.base.abilities[abilityIndex];
-            requiredAp = (pa && typeof pa.ap_cost === 'number') ? Number(pa.ap_cost) : ((pa && typeof pa.apCost === 'number') ? Number(pa.apCost) : 1);
+            requiredAp = getAbilityApCost(pa);
           } else if(hero && hero.base && Array.isArray(hero.base.abilities) && hero.base.abilities.length>0){
             const pa = hero.base.abilities.find(a=>a.primary) || hero.base.abilities[0];
-            requiredAp = (pa && typeof pa.ap_cost === 'number') ? Number(pa.ap_cost) : ((pa && typeof pa.apCost === 'number') ? Number(pa.apCost) : 1);
+            requiredAp = getAbilityApCost(pa);
           }
         }catch(e){ requiredAp = 1; }
         if(ctx.encounter.ap < requiredAp) { if(ctx.setMessage) ctx.setMessage('Not enough AP'); return; }

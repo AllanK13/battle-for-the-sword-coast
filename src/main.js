@@ -1,19 +1,53 @@
 import { createRNG } from './engine/rng.js';
 import { buildDeck } from './engine/deck.js';
-import { startEncounter, playHeroAttack, playHeroAction, enemyAct, isFinished, placeHero, replaceHero, useSummon, defendHero } from './engine/encounter.js';
-import { createMeta, buyUpgrade, buyLegendaryItem, loadMeta, saveMeta, saveMetaIfAllowed, saveAdventureTemp, deleteAdventureTemp } from './engine/meta.js';
+import { 
+  startEncounter, 
+  playHeroAttack, 
+  playHeroAction, 
+  enemyAct, 
+  isFinished, 
+  placeHero, 
+  replaceHero, 
+  useSummon, 
+  defendHero 
+} from './engine/encounter.js';
+import { 
+  createMeta, 
+  buyUpgrade, 
+  buyLegendaryItem, 
+  loadMeta, 
+  saveMeta, 
+  saveMetaIfAllowed, 
+  saveAdventureTemp, 
+  deleteAdventureTemp 
+} from './engine/meta.js';
 import { AudioManager } from './engine/audio.js';
 import { register, navigate } from './ui/router.js';
 import { renderStart } from './ui/screens/arcade_start.js';
 import { renderMenu } from './ui/screens/menu.js';
 import { renderAdventureStart } from './ui/screens/adventure_start.js';
-import { renderAdventureDaggerford } from './ui/screens/adventure_daggerford_scene_1.js';
+import { renderAdventureDaggerford } from './ui/screens/adventures/daggerford/adventure_daggerford_scene_1.js';
+import { renderAdventureDaggerfordChoice1 } from './ui/screens/adventures/daggerford/adventure_daggerford_choice_1.js';
+import { renderAdventureDaggerfordChoice1Result } from './ui/screens/adventures/daggerford/adventure_daggerford_choice_1_result.js';
+import { renderAdventureDaggerfordScene2 } from './ui/screens/adventures/daggerford/adventure_daggerford_scene_2.js';
 import { renderStats } from './ui/screens/arcade_stats.js';
 import { renderHowTo } from './ui/screens/arcade_howto.js';
 import { renderUpgrades } from './ui/screens/arcade_upgrades.js';
 import { renderBattle } from './ui/screens/battle.js';
 import { renderEnd } from './ui/screens/end.js';
 import { renderEncounterEnd } from './ui/screens/encounter_end.js';
+import {
+  getMusicPaths,
+  getSfxPaths,
+  getHeroName,
+  getEnemyName,
+  getEnemyKey,
+  disableStateHandlers,
+  restoreStateHandlers,
+  shouldSaveToGlobal,
+  updateMetaStat,
+  updateEnemyCount
+} from './engine/helpers.js';
 
 const data = {};
 let meta = loadMeta();
@@ -80,6 +114,13 @@ async function loadData(){
   data.arcadePath = arcadePath || null;
 }
 
+// Helper to initialize music (reduces repetition)
+function initMusic(filename, opts = { autoplay: true, loop: true }) {
+  try {
+    AudioManager.init(getMusicPaths(filename)[0], opts);
+  } catch (e) { /* ignore audio init failures */ }
+}
+
 // Helper: create a deck, start an encounter and build the UI context object.
 function createEncounterSession(enemyIndex, chosenIds, rng){
   // keep a local mutable copy of the chosen ids so we can rebuild the deck
@@ -135,8 +176,8 @@ function createEncounterSession(enemyIndex, chosenIds, rng){
       if(!res.success){ if(ctx.setMessage) ctx.setMessage(res.reason||'Attack failed'); }
       else {
         // derive friendly hero and enemy names for messages
-        const heroName = (encounter.playfield && encounter.playfield[slot] && encounter.playfield[slot].base && encounter.playfield[slot].base.name) ? encounter.playfield[slot].base.name : ('Hero ' + (slot+1));
-        const enemyName = (encounter.enemy && (encounter.enemy.name || encounter.enemy.id)) ? (encounter.enemy.name || encounter.enemy.id) : 'Enemy';
+        const heroName = getHeroName(encounter.playfield[slot], slot);
+        const enemyName = getEnemyName(encounter.enemy);
         if(res.missed){
           if(ctx.setMessage) ctx.setMessage(heroName+' missed '+enemyName);
         } else if(res.crit){
@@ -146,8 +187,7 @@ function createEncounterSession(enemyIndex, chosenIds, rng){
         }
         try{
           if(res.dmg && res.dmg > 0){
-            const sfxCandidates = ['./assets/sfx/player_attack.mp3'];
-            AudioManager.playSfx(sfxCandidates, { volume: 1.0 });
+            AudioManager.playSfx(getSfxPaths('player_attack.mp3'), { volume: 1.0 });
           }
         }catch(e){}
       }
@@ -160,7 +200,7 @@ function createEncounterSession(enemyIndex, chosenIds, rng){
       const res = defendHero(encounter, slot);
       if(!res.success){ if(ctx.setMessage) ctx.setMessage(res.reason||'Defend failed'); }
       else {
-        const heroName = (encounter.playfield && encounter.playfield[slot] && encounter.playfield[slot].base && encounter.playfield[slot].base.name) ? encounter.playfield[slot].base.name : ('Hero ' + (slot+1));
+        const heroName = getHeroName(encounter.playfield[slot], slot);
         if(ctx.setMessage) ctx.setMessage(heroName+' is dodging');
       }
       return res;
@@ -207,7 +247,7 @@ function createEncounterSession(enemyIndex, chosenIds, rng){
     endTurn(){
       const res = enemyAct(encounter);
       // process events for messaging — include enemy name instead of generic 'Enemy'
-      const enemyName = (encounter.enemy && (encounter.enemy.name || encounter.enemy.id)) ? (encounter.enemy.name || encounter.enemy.id) : 'Enemy';
+      const enemyName = getEnemyName(encounter.enemy);
       let messages = [];
       if(res && res.events && res.events.length) {
         messages = res.events.map(ev => {
@@ -217,7 +257,7 @@ function createEncounterSession(enemyIndex, chosenIds, rng){
             return (src + ' dealt ' + (ev.dmg||0) + ' damage to ' + enemyName + '. HP: ' + (ev.enemyHp||0));
           }
           if(ev.type === 'hit') {
-              const name = ev.heroName || (encounter.playfield[ev.slot] && encounter.playfield[ev.slot].base && encounter.playfield[ev.slot].base.name) || ('space ' + (ev.slot+1));
+              const name = ev.heroName || getHeroName(encounter.playfield[ev.slot], ev.slot);
               const totalDmg = (ev.tempTaken||0)+(ev.hpTaken||0);
             const attackPrefix = ev.attackName ? (enemyName + ' used ' + ev.attackName + ' and ') : (enemyName + ' ');
               if(ev.missed) return attackPrefix + 'missed ' + name;
@@ -227,15 +267,15 @@ function createEncounterSession(enemyIndex, chosenIds, rng){
               return attackPrefix + 'hit ' + name + ' for ' + totalDmg + ', remaining HP: ' + ev.remainingHp;
           }
               if(ev.type === 'heroStunned'){
-                const hn = ev.heroName || (encounter.playfield[ev.slot] && encounter.playfield[ev.slot].base && encounter.playfield[ev.slot].base.name) || ('space ' + (ev.slot+1));
+                const hn = ev.heroName || getHeroName(encounter.playfield[ev.slot], ev.slot);
                 return hn + ' stunned for ' + (ev.turns||1) + ' turn' + ((ev.turns||1)>1 ? 's':'' ) + '.';
               }
               if(ev.type === 'heroEnfeebled'){
-                const hn2 = ev.heroName || (encounter.playfield[ev.slot] && encounter.playfield[ev.slot].base && encounter.playfield[ev.slot].base.name) || ('space ' + (ev.slot+1));
+                const hn2 = ev.heroName || getHeroName(encounter.playfield[ev.slot], ev.slot);
                 return hn2 + ' enfeebled — physical attacks deal half damage for ' + (ev.turns||1) + ' turn' + ((ev.turns||1)>1 ? 's' : '') + '.';
               }
               if(ev.type === 'heroBlinded'){
-                const hn3 = ev.heroName || (encounter.playfield[ev.slot] && encounter.playfield[ev.slot].base && encounter.playfield[ev.slot].base.name) || ('space ' + (ev.slot+1));
+                const hn3 = ev.heroName || getHeroName(encounter.playfield[ev.slot], ev.slot);
                 return hn3 + ' blinded — 50% miss chance for ' + (ev.turns||1) + ' turn' + ((ev.turns||1)>1 ? 's' : '') + '.';
               }
           return null;
@@ -291,7 +331,7 @@ function createEncounterSession(enemyIndex, chosenIds, rng){
 
         // If a persistent enemy sequence is attached to the session, spawn the next one immediately
         try{
-          const enemyKeyNow = encounter.enemy.id || encounter.enemy.name || 'unknown';
+          const enemyKeyNow = getEnemyKey(encounter.enemy);
           if(ctx && Array.isArray(ctx.enemySequence) && ctx.enemySequence.length > 0){
             // record defeated enemy in the run summary but DO NOT award IP yet
             runSummary.defeated.push(enemyKeyNow);
@@ -307,7 +347,7 @@ function createEncounterSession(enemyIndex, chosenIds, rng){
               encounter.turn = 0;
               encounter.ap = encounter.apPerTurn || (meta.apPerTurn || 3);
               ctx.encounter = encounter;
-              if(ctx.setMessage) ctx.setMessage('Next enemy: '+(encounter.enemy.name||encounter.enemy.id));
+              if(ctx.setMessage) ctx.setMessage('Next enemy: ' + getEnemyName(encounter.enemy));
               ctx.onStateChange();
               return;
             }
@@ -316,10 +356,7 @@ function createEncounterSession(enemyIndex, chosenIds, rng){
 
         // No sequence (or sequence exhausted) — show the encounter end screen. Respect session flag to suppress IP.
         // temporarily disable state updates while the encounter-end screen is shown
-        const prevOnState = ctx.onStateChange;
-        const prevSetMessage = ctx.setMessage;
-        ctx.onStateChange = ()=>{};
-        ctx.setMessage = ()=>{};
+        const { prevOnState, prevSetMessage } = disableStateHandlers(ctx);
 
         const encounterEndCtx = {
           data,
@@ -328,111 +365,113 @@ function createEncounterSession(enemyIndex, chosenIds, rng){
           runSummary,
           showIp: !(ctx && ctx.suppressIpOnEncounterEnd),
           onContinue: ()=>{
-            // restore handlers
-            ctx.onStateChange = prevOnState;
-            ctx.setMessage = prevSetMessage;
-            // record defeated enemy and award IP only if allowed
-            const enemyKey = encounter.enemy.id || encounter.enemy.name || 'unknown';
-            runSummary.defeated.push(enemyKey);
-            if(encounterEndCtx.showIp){
-              runSummary.ipEarned = (runSummary.ipEarned||0) + reward;
-              meta.ip += reward;
-              meta.totalIpEarned = (meta.totalIpEarned||0) + reward;
-            }
-            // update persistent stats (only update global save for arcade runs)
-            try{
-              if(!ctx || !ctx.isAdventure){
-                meta.encountersBeaten = (meta.encountersBeaten || 0) + 1;
-                // furthest reached enemy: use current index
-                meta.furthestReachedEnemy = Math.max((meta.furthestReachedEnemy||0), currentEnemyIndex);
-                // increment per-enemy defeat count
-                meta.enemyDefeatCounts = meta.enemyDefeatCounts || {};
-                meta.enemyDefeatCounts[enemyKey] = (meta.enemyDefeatCounts[enemyKey] || 0) + 1;
-                saveMeta(meta);
-              } else {
-                try{ ctx.meta = ctx.meta || {}; ctx.meta.encountersBeaten = (ctx.meta.encountersBeaten||0) + 1; ctx.meta.enemyDefeatCounts = ctx.meta.enemyDefeatCounts || {}; ctx.meta.enemyDefeatCounts[enemyKey] = (ctx.meta.enemyDefeatCounts[enemyKey] || 0) + 1; }catch(e){}
+            // restore handlers first so cinematic screens can use ctx methods
+            restoreStateHandlers(ctx, prevOnState, prevSetMessage);
+
+            // continuation logic captured as a closure so cinematic can resume it
+            const continueAfterCinematic = ()=>{
+              // record defeated enemy and award IP only if allowed
+              const enemyKey = getEnemyKey(encounter.enemy);
+              runSummary.defeated.push(enemyKey);
+              if(encounterEndCtx.showIp){
+                runSummary.ipEarned = (runSummary.ipEarned||0) + reward;
+                meta.ip += reward;
+                meta.totalIpEarned = (meta.totalIpEarned||0) + reward;
               }
-            }catch(e){ /* ignore */ }
-            // advance to next enemy according to the arcade path if present
-            currentEnemyIndex += 1;
-            if(currentEnemyIndex < path.length){
-              const nextId = path[currentEnemyIndex];
-              enemy = (data.enemies||[]).find(e => e && e.id === nextId) || data.enemies[currentEnemyIndex];
-              // refresh characters/deck so all heroes are available for the next encounter
-              // gather every card that may exist in the previous deck/encounter (draw/hand/discard/exhausted/played)
+              // update persistent stats (only update global save for arcade runs)
               try{
-                // preserve duplicate copies: collect ids with multiplicity
-                const allIdsList = [];
-                // from current deck arrays (if present)
-                if(deck && Array.isArray(deck.draw)) deck.draw.forEach(c=> c && c.id && allIdsList.push(c.id));
-                if(deck && Array.isArray(deck.hand)) deck.hand.forEach(c=> c && c.id && allIdsList.push(c.id));
-                if(deck && Array.isArray(deck.discard)) deck.discard.forEach(c=> c && c.id && allIdsList.push(c.id));
-                if(deck && Array.isArray(deck.exhausted)) deck.exhausted.forEach(c=> c && c.id && allIdsList.push(c.id));
-                // from encounter-level exhausted or playfield
-                if(encounter && Array.isArray(encounter.exhaustedThisEncounter)) encounter.exhaustedThisEncounter.forEach(c=> c && c.id && allIdsList.push(c.id));
-                if(encounter && Array.isArray(encounter.playfield)) encounter.playfield.forEach(h=>{ if(h && h.base && h.base.id) allIdsList.push(h.base.id); });
-                // fallback to originally chosen set if nothing found
-                const rebuildIds = (allIdsList.length>0) ? allIdsList : chosen.slice();
-                // update chosen so subsequent rebuilds preserve this pool
-                chosen = rebuildIds.slice();
-                // rebuild deck using combined card defs (include legendary heroes)
-                const legendaryCards = (data.legendary || []).filter(l => l && typeof l.hp === 'number');
-                const cardDefs = (data.cards || []).concat(legendaryCards);
-                deck = buildDeck(cardDefs, rebuildIds, RNG);
-              }catch(e){ console.warn('Failed to rebuild deck for next encounter', e); }
-              // choose AP per turn depending on session type (adventure sessions use their own AP)
-              const apPerTurnForNext = (ctx && ctx.isAdventure) ? (ctx.encounter && ctx.encounter.apPerTurn ? ctx.encounter.apPerTurn : 3) : (meta.apPerTurn || 3);
-              encounter = startEncounter({...enemy}, deck, RNG, { apPerTurn: apPerTurnForNext });
-              ctx.encounter = encounter;
-              ctx.currentEnemyIndex = currentEnemyIndex;
-              // persist updated IP immediately
-              try{ if(!ctx || !ctx.isAdventure) saveMeta(meta); }catch(e){ console.warn('saveMeta failed', e); }
-              if(ctx.setMessage) ctx.setMessage('Next enemy: '+(enemy.name||enemy.id));
-              ctx.onStateChange();
-              return;
-            } else {
-              // no more enemies -> end run
-              try{ if(!ctx || !ctx.isAdventure){ meta.runs = (meta.runs||0) + 1; saveMeta(meta); } else { try{ ctx.meta = ctx.meta || {}; ctx.meta.runs = (ctx.meta.runs||0) + 1; }catch(e){} } }catch(e){}
-              const endCtx = { data, runSummary, showIp: true, onRestart: ()=>{ try{ meta.summonUsage = {}; try{ saveMetaIfAllowed(meta, ctx); }catch(e){} }catch(e){}; navigate('arcade_start'); } };
-              // prevent any pending timeouts or future onStateChange calls from re-rendering the battle
-              if(ctx && ctx.isAdventure){
-                ctx.onStateChange = ()=>{};
-                ctx.setMessage = ()=>{};
-                navigate('adventure_start');
+                updateMetaStat(meta, 'encountersBeaten', 1, ctx);
+                updateMetaStat(meta, 'furthestReachedEnemy', Math.max((meta.furthestReachedEnemy||0), currentEnemyIndex), ctx);
+                updateEnemyCount(meta, enemyKey, 'enemyDefeatCounts', ctx);
+                saveMetaIfAllowed(meta, ctx);
+              }catch(e){ /* ignore */ }
+              // advance to next enemy according to the arcade path if present
+              currentEnemyIndex += 1;
+              if(currentEnemyIndex < path.length){
+                const nextId = path[currentEnemyIndex];
+                enemy = (data.enemies||[]).find(e => e && e.id === nextId) || data.enemies[currentEnemyIndex];
+                // refresh characters/deck so all heroes are available for the next encounter
+                // gather every card that may exist in the previous deck/encounter (draw/hand/discard/exhausted/played)
+                try{
+                  // preserve duplicate copies: collect ids with multiplicity
+                  const allIdsList = [];
+                  // from current deck arrays (if present)
+                  if(deck && Array.isArray(deck.draw)) deck.draw.forEach(c=> c && c.id && allIdsList.push(c.id));
+                  if(deck && Array.isArray(deck.hand)) deck.hand.forEach(c=> c && c.id && allIdsList.push(c.id));
+                  if(deck && Array.isArray(deck.discard)) deck.discard.forEach(c=> c && c.id && allIdsList.push(c.id));
+                  if(deck && Array.isArray(deck.exhausted)) deck.exhausted.forEach(c=> c && c.id && allIdsList.push(c.id));
+                  // from encounter-level exhausted or playfield
+                  if(encounter && Array.isArray(encounter.exhaustedThisEncounter)) encounter.exhaustedThisEncounter.forEach(c=> c && c.id && allIdsList.push(c.id));
+                  if(encounter && Array.isArray(encounter.playfield)) encounter.playfield.forEach(h=>{ if(h && h.base && h.base.id) allIdsList.push(h.base.id); });
+                  // fallback to originally chosen set if nothing found
+                  const rebuildIds = (allIdsList.length>0) ? allIdsList : chosen.slice();
+                  // update chosen so subsequent rebuilds preserve this pool
+                  chosen = rebuildIds.slice();
+                  // rebuild deck using combined card defs (include legendary heroes)
+                  const legendaryCards = (data.legendary || []).filter(l => l && typeof l.hp === 'number');
+                  const cardDefs = (data.cards || []).concat(legendaryCards);
+                  deck = buildDeck(cardDefs, rebuildIds, RNG);
+                }catch(e){ console.warn('Failed to rebuild deck for next encounter', e); }
+                // choose AP per turn depending on session type (adventure sessions use their own AP)
+                const apPerTurnForNext = (ctx && ctx.isAdventure) ? (ctx.encounter && ctx.encounter.apPerTurn ? ctx.encounter.apPerTurn : 3) : (meta.apPerTurn || 3);
+                encounter = startEncounter({...enemy}, deck, RNG, { apPerTurn: apPerTurnForNext });
+                ctx.encounter = encounter;
+                ctx.currentEnemyIndex = currentEnemyIndex;
+                // persist updated IP immediately
+                try{ if(!ctx || !ctx.isAdventure) saveMeta(meta); }catch(e){ console.warn('saveMeta failed', e); }
+                if(ctx.setMessage) ctx.setMessage('Next enemy: '+(enemy.name||enemy.id));
+                ctx.onStateChange();
+                return;
+              } else {
+                // no more enemies -> end run
+                try{ updateMetaStat(meta, 'runs', (meta.runs||0) + 1, ctx); saveMetaIfAllowed(meta, ctx); }catch(e){}
+                const endCtx = { data, runSummary, showIp: true, onRestart: ()=>{ try{ meta.summonUsage = {}; try{ saveMetaIfAllowed(meta, ctx); }catch(e){} }catch(e){}; navigate('arcade_start'); } };
+                // prevent any pending timeouts or future onStateChange calls from re-rendering the battle
+                if(ctx && ctx.isAdventure){
+                  disableStateHandlers(ctx);
+                  navigate('adventure_start');
+                  return;
+                }
+                disableStateHandlers(ctx);
+                navigate('arcade_end', endCtx);
                 return;
               }
-              ctx.onStateChange = ()=>{};
-              ctx.setMessage = ()=>{};
-              navigate('arcade_end', endCtx);
-              return;
-            }
+            };
+
+            // If this is an adventure and the defeated enemy is a thug, route to the choice cinematic
+            try{
+              if(ctx && ctx.isAdventure && getEnemyKey(encounter.enemy) === 'thug'){
+                // navigate to the choice cinematic and pass the resume callback
+                navigate('adventure_daggerford_choice_1', { ctx, encounter, runSummary, resumeCallback: continueAfterCinematic });
+                return;
+              }
+            }catch(e){ /* fall through to normal continuation */ }
+
+            // Default: proceed with original continuation
+            continueAfterCinematic();
           }
         };
         navigate('arcade_encounter_end', encounterEndCtx);
         return;
       } else if(finished === 'enemy'){
         // record death
-        const enemyKey = encounter.enemy.id || encounter.enemy.name || 'unknown';
+        const enemyKey = getEnemyKey(encounter.enemy);
         runSummary.diedTo = enemyKey;
         // update run stats (failed run) and compute V interest if applicable
         let vInterest = 0;
         try{
+          updateMetaStat(meta, 'runs', (meta.runs||0) + 1, ctx);
+          updateMetaStat(meta, 'furthestReachedEnemy', Math.max((meta.furthestReachedEnemy||0), currentEnemyIndex), ctx);
+          updateEnemyCount(meta, enemyKey, 'enemyVictoryCounts', ctx);
+          // If player purchased invest_v, award 25% of run IP (rounded down)
           if(!ctx || !ctx.isAdventure){
-            meta.runs = (meta.runs||0) + 1;
-            meta.furthestReachedEnemy = Math.max((meta.furthestReachedEnemy||0), currentEnemyIndex);
-            // increment per-enemy victory count
-            meta.enemyVictoryCounts = meta.enemyVictoryCounts || {};
-            meta.enemyVictoryCounts[enemyKey] = (meta.enemyVictoryCounts[enemyKey] || 0) + 1;
-            // If player purchased invest_v, award 25% of run IP (rounded down)
             if(meta && Array.isArray(meta.purchasedUpgrades) && meta.purchasedUpgrades.includes('invest_v')){
               vInterest = Math.floor((runSummary.ipEarned||0) * 0.15);
               meta.ip += vInterest;
               meta.totalIpEarned = (meta.totalIpEarned||0) + vInterest;
             }
-            saveMeta(meta);
-          } else {
-            try{ ctx.meta = ctx.meta || {}; ctx.meta.runs = (ctx.meta.runs||0) + 1; ctx.meta.furthestReachedEnemy = Math.max((ctx.meta.furthestReachedEnemy||0), currentEnemyIndex); ctx.meta.enemyVictoryCounts = ctx.meta.enemyVictoryCounts || {}; ctx.meta.enemyVictoryCounts[enemyKey] = (ctx.meta.enemyVictoryCounts[enemyKey] || 0) + 1; }catch(e){}
           }
+          saveMetaIfAllowed(meta, ctx);
         }catch(e){}
         // capture the last battle history message (if any) so the end screen
         // can show what dealt the killing blow
@@ -450,8 +489,7 @@ function createEncounterSession(enemyIndex, chosenIds, rng){
           }
         };
         // prevent any pending timeouts or future onStateChange calls from re-rendering the battle
-        ctx.onStateChange = ()=>{};
-        ctx.setMessage = ()=>{};
+        disableStateHandlers(ctx);
         // Always show the end screen; the end screen's restart handler will return
         // to the appropriate start screen depending on session type.
         navigate('arcade_end', endCtx);
@@ -471,8 +509,8 @@ function handlePlayHeroAction(encounter, ctx, slot, targetIndex, abilityIndex){
   if(!res || !res.success){ if(ctx.setMessage) ctx.setMessage((res && res.reason) ? res.reason : 'Action failed'); return res; }
   if(res.type === 'attack'){
     // include hero & enemy names in the attack message
-    const heroName = (encounter.playfield && encounter.playfield[slot] && encounter.playfield[slot].base && encounter.playfield[slot].base.name) ? encounter.playfield[slot].base.name : ('Hero ' + (slot+1));
-    const enemyName = (encounter.enemy && (encounter.enemy.name || encounter.enemy.id)) ? (encounter.enemy.name || encounter.enemy.id) : 'Enemy';
+    const heroName = getHeroName(encounter.playfield[slot], slot);
+    const enemyName = getEnemyName(encounter.enemy);
     if(res.missed){
       if(ctx.setMessage) ctx.setMessage(heroName+' missed '+enemyName);
     } else if(res.crit){
@@ -527,10 +565,7 @@ function appStart(){
   }catch(e){}
   register('arcade_start', (root)=> {
     // Switch to menu music when entering the start screen
-    try{
-      const musicCandidates = ['./assets/music/menu.mp3','assets/music/menu.mp3','/assets/music/menu.mp3'];
-      AudioManager.init(musicCandidates[0], { autoplay:true, loop:true });
-    }catch(e){ /* ignore */ }
+    initMusic('menu.mp3');
     return renderStart(root, {
       data,
       meta,
@@ -601,21 +636,30 @@ function appStart(){
 
   // Cinematic screen for Streets of Daggerford
   register('adventure_daggerford', (root, params)=>{
-    try{
-      const musicCandidates = ['./assets/music/town.mp3','assets/music/town.mp3','/assets/music/town.mp3'];
-      AudioManager.init(musicCandidates[0], { autoplay:true, loop:true });
-    }catch(e){}
+    initMusic('town.mp3');
     return renderAdventureDaggerford(root, params || {});
+  });
+
+  register('adventure_daggerford_choice_1', (root, params)=>{
+    initMusic('town.mp3');
+    return renderAdventureDaggerfordChoice1(root, params || {});
+  });
+
+  register('adventure_daggerford_choice_1_result', (root, params)=>{
+    initMusic('town.mp3');
+    return renderAdventureDaggerfordChoice1Result(root, params || {});
+  });
+
+  register('adventure_daggerford_scene_2', (root, params)=>{
+    initMusic('town.mp3');
+    return renderAdventureDaggerfordScene2(root, params || {});
   });
 
   // Adventure Mode start screen
   register('adventure_start', (root)=> {
     // Remove any leftover temporary adventure save when entering the adventure start screen
     try{ deleteAdventureTemp(); }catch(e){}
-    try{
-      const musicCandidates = ['./assets/music/menu.mp3','assets/music/menu.mp3','/assets/music/menu.mp3'];
-      AudioManager.init(musicCandidates[0], { autoplay:true, loop:true });
-    }catch(e){}
+    initMusic('menu.mp3');
     return renderAdventureStart(root, {
       data,
       meta,
@@ -674,10 +718,7 @@ function appStart(){
 
   register('arcade_upgrades', (root)=> {
     // Switch to town music when entering upgrades screen (if available)
-    try{
-      const musicCandidates = ['./assets/music/town.mp3','assets/music/town.mp3','/assets/music/town.mp3'];
-      AudioManager.init(musicCandidates[0], { autoplay:true, loop:true });
-    }catch(e){ /* ignore */ }
+    initMusic('town.mp3');
     return renderUpgrades(root, {
       data,
       meta,
@@ -723,9 +764,8 @@ function appStart(){
 
   // Initialize background music to menu track. Place your music file at `assets/music/menu.mp3`.
   try{
-    const musicCandidates = ['./assets/music/menu.mp3','assets/music/menu.mp3','/assets/music/menu.mp3'];
-    // Start with the first candidate; browsers will gracefully fail if missing.
-    AudioManager.init(musicCandidates[0], { autoplay:true, loop:true });
+    // Start with menu music; browsers will gracefully fail if missing.
+    initMusic('menu.mp3');
     // Convenience helpers exposed for debugging or UI wiring
     window.toggleMusic = function(){ return AudioManager.toggle(); };
     window.setMusicVolume = function(v){ return AudioManager.setVolume(v); };

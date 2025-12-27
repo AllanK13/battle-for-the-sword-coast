@@ -36,7 +36,9 @@ export function renderUpgrades(root, ctx){
       btn.addEventListener('click',()=>{ if(ctx.buyLegendary) ctx.buyLegendary(c.id); else if(ctx.setMessage) ctx.setMessage('No buy handler'); });
       footer.appendChild(btn);
       const opts = { hideSlot:false, hideCost:true, footer };
-      cardWrap.appendChild(cardTile(c, opts));
+      const tile = cardTile(c, opts);
+      try{ tile.style.height = '470px'; tile.style.minHeight = '470px'; tile.style.maxHeight = '470px'; }catch(e){}
+      cardWrap.appendChild(tile);
       grid.appendChild(cardWrap);
     });
     tierWrap.appendChild(grid);
@@ -48,6 +50,7 @@ export function renderUpgrades(root, ctx){
   const summonsSec = section('Hire Summons');
   const sGrid = el('div',{class:'card-grid summons-grid'},[]);
   (ctx.data.summons||[]).forEach(s=>{
+    if(s && s.adventure_only && !(ctx && ctx.isAdventure)) return;
     const owned = (ctx.meta && Array.isArray(ctx.meta.ownedSummons) && ctx.meta.ownedSummons.includes(s.id));
     const hasEarnedIp = ctx.meta && ((ctx.meta.totalIpEarned||0) > 0);
     // only show this summon in the shop if it's a starter, already owned, or the player has earned IP (Town unlocked)
@@ -61,7 +64,9 @@ export function renderUpgrades(root, ctx){
     btn.addEventListener('click',()=>{ if(ctx.buyLegendary) ctx.buyLegendary(s.id); else if(ctx.setMessage) ctx.setMessage('No buy handler'); });
     footer.appendChild(btn);
     const sOpts = { hideSlot:true, hideCost:true, footer };
-    wrap.appendChild(cardTile(s, sOpts));
+    const sTile = cardTile(s, sOpts);
+    try{ sTile.style.height = '450px'; sTile.style.minHeight = '450px'; sTile.style.maxHeight = '450px'; }catch(e){}
+    wrap.appendChild(sTile);
     sGrid.appendChild(wrap);
   });
   summonsSec.appendChild(sGrid);
@@ -130,7 +135,9 @@ export function renderUpgrades(root, ctx){
       // Legendary store: render fixed griff1 for Griff
       const lOpts = { hideSlot: !isCard, hideCost: true, footer };
       try{ if(it && it.id === 'griff') lOpts.imageOverride = './assets/griff1.png'; }catch(e){}
-      elCard.appendChild(cardTile(it, lOpts));
+      const lTile = cardTile(it, lOpts);
+      try{ lTile.style.height = '470px'; lTile.style.minHeight = '470px'; lTile.style.maxHeight = '470px'; }catch(e){}
+      elCard.appendChild(lTile);
       lGrid.appendChild(elCard);
     });
     legSec.appendChild(lGrid);

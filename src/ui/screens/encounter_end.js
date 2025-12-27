@@ -1,5 +1,6 @@
 import { el } from '../renderer.js';
 import { AudioManager } from '../../engine/audio.js';
+import { initMusic } from '../../engine/helpers.js';
 
 export function renderEncounterEnd(root, ctx){
   const enemy = ctx.enemy || {};
@@ -8,8 +9,7 @@ export function renderEncounterEnd(root, ctx){
 
   // Play victory music for encounter completion (stop previous music first)
   try{
-    const musicCandidates = ['./assets/music/victory.mp3','assets/music/victory.mp3','/assets/music/victory.mp3'];
-    AudioManager.init(musicCandidates[0], { autoplay:true, loop:false });
+    initMusic('victory.mp3', { autoplay: true, loop: false });
     // Turn down victory track by 20% (use AudioManager so multiplier applies);
     try{
       const base = (AudioManager.getVolume ? AudioManager.getVolume() : (AudioManager.audio && typeof AudioManager.audio.volume === 'number' ? AudioManager.audio.volume : 1));
@@ -45,7 +45,13 @@ export function renderEncounterEnd(root, ctx){
 
   const btnRow = el('div',{class:'end-btns'},[]);
   const cont = el('button',{class:'btn end-back-btn'},['Continue']);
+  let clicked = false;
   cont.addEventListener('click',()=>{
+    // prevent double-clicks and rapid clicks
+    if(clicked) return;
+    clicked = true;
+    cont.disabled = true;
+    cont.style.opacity = '0.5';
     // restore volume if we reduced it for the victory track
     try{
       if(typeof ctx._victoryPrevVol !== 'undefined'){
@@ -53,7 +59,10 @@ export function renderEncounterEnd(root, ctx){
         delete ctx._victoryPrevVol;
       }
     }catch(e){}
-    if(ctx.onContinue) ctx.onContinue();
+    // small delay before continuing to ensure UI state is settled
+    setTimeout(()=>{
+      if(ctx.onContinue) ctx.onContinue();
+    }, 100);
   });
   btnRow.appendChild(cont);
   container.appendChild(btnRow);

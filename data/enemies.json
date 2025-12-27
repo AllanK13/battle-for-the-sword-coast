@@ -266,27 +266,27 @@
   {
     "name": "Thug",
     "ip_reward": 0,
-    "hp": 25,
+    "hp": 32,
     "id": "thug",
     "attacks": [
       {
         "name": "Mace",
         "type": "single",
         "dmg": 2,
-        "hitChance": 0.8,
+        "hitChance": 0.9,
         "critChance": 0.0
       },
       {
         "name": "Mace",
         "type": "single",
         "dmg": 2,
-        "hitChance": 0.8,
+        "hitChance": 0.9,
         "critChance": 0.0
       },      
       {
         "name": "Crossbow",
         "type": "single",
-        "dmg": 1,
+        "dmg": 2,
         "hitChance": 0.95,
         "critChance": 0.0
       }

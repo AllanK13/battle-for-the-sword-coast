@@ -281,6 +281,8 @@ export function renderStart(root, ctx){
         }
       }catch(e){}
       const tile = cardTile(c, opts);
+      // Make start-screen cards slightly taller for better readability
+      try{ tile.style.height = '410px'; tile.style.minHeight = '410px'; tile.style.maxHeight = '420px'; }catch(e){}
       tile.style.cursor='pointer';
       if(selected.has(c.id)) tile.classList.add('selected');
       tile.addEventListener('click',()=>{

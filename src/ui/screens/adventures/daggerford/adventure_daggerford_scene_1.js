@@ -1,6 +1,8 @@
-import { el } from '../renderer.js';
-import { AudioManager } from '../../engine/audio.js';
-import { navigate } from '../router.js';
+import { el } from '../../../renderer.js';
+import { AudioManager } from '../../../../engine/audio.js';
+import { navigate } from '../../../router.js';
+import { initMusic } from '../../../../engine/helpers.js';
+import { splitNarrative } from '../text_split.js';
 
 export function renderAdventureDaggerford(root, ctx = {}){
   const container = el('div',{class:'adventure-cinematic', style:'position:relative;width:100%;height:100%;background:transparent;overflow:visible;color:#fff;display:flex;align-items:center;justify-content:center'},[]);
@@ -28,13 +30,23 @@ export function renderAdventureDaggerford(root, ctx = {}){
   // Fade the overlay in later to avoid an initial black flash
   setTimeout(()=>{ try{ overlay.style.opacity = '1'; }catch(e){} }, 2200);
 
+  // Character portrait (Cree) - positioned at bottom left, outside text overlay but above background
+  const portrait = el('img',{src:'assets/cree_teen.png', alt:'Cree', style:'position:absolute;left:8%;bottom:-170%;z-index:7;max-height:50vh;width:auto;opacity:0;transition:opacity 2000ms ease;pointer-events:none'});
+  portrait.addEventListener('error', ()=>{ portrait.style.display='none'; });
+  portrait.addEventListener('load', ()=>{ setTimeout(()=>{ try{ portrait.style.opacity = '0.9'; }catch(e){} }, 2400); });
+  container.appendChild(portrait);
+
   // Text area (centered column) — nudged down so it sits lower within the cinematic overlay
-  const textWrap = el('div',{style:'position:relative;z-index:10;max-width:900px;width:80%;height:60%;overflow:hidden;display:flex;align-items:flex-start;justify-content:center;padding:28px;margin-top:0vh;'},[]);
+  const textWrap = el('div',{style:'position:relative;z-index:10;max-width:1000px;width:90%;height:60%;overflow:hidden;display:flex;align-items:flex-start;justify-content:center;padding:28px;margin-top:0vh;'},[]);
   const inner = el('div',{style:'color:#eee;font-size:20px;line-height:1.6;padding-bottom:24px;display:flex;flex-direction:column;gap:14px;align-items:flex-start;'},[]);
   // Sentences will be revealed one-after-another; each sentence on its own line
-  const placeholder = `Daggerford, the largest city north of Baldur’s Gate, rose in prominence after the fall of Waterdeep. Ushered in by the benevolence of the Heroes of Faerun, this bustling metropolis now contains a thriving market full of every wondrous item imaginable, attracting merchants and adventurers alike. Cree is just beginning his journey, drawn to the greatest city on the Sword Coast by the promise of opportunity. On his way to the tavern, he ran into some trouble…`;
-  // Split into sentences (keep punctuation). This is a lightweight split and covers typical sentence endings.
-  const sentences = (placeholder.match(/[^\.\!\?…]+[\.\!\?…]*/g) || []).map(s => s.trim()).filter(Boolean);
+  const text = `
+Daggerford, the largest city north of Baldur’s Gate, rose to prominence in the wake of Waterdeep’s fall.|
+Guided by the benevolence of the Heroes of Faerûn, the city has grown into a bustling metropolis, its markets overflowing with rare goods and impossible wonders—drawing merchants, mercenaries, and fortune-seekers from across the Sword Coast.|
+Cree is only just beginning his journey, lured to the city by the promise of opportunity. Before he can even reach the tavern, trouble finds him first…
+`;
+  // Use custom delimiter `|` when present, otherwise fall back to sentence splitting
+  const sentences = splitNarrative(text, '|');
   const pEls = sentences.map(s => {
     const p = el('p',{style:'margin:0;opacity:0;transform:translateY(6px);transition:opacity 750ms ease, transform 750ms ease;max-width:100%' },[s]);
     inner.appendChild(p);
@@ -93,8 +105,7 @@ export function renderAdventureDaggerford(root, ctx = {}){
 
   // Play town music (fade handled by AudioManager)
   try{
-    const musicCandidates = ['./assets/music/town.mp3','assets/music/town.mp3','/assets/music/town.mp3'];
-    AudioManager.init(musicCandidates[0], { autoplay:true, loop:true });
+    initMusic('town.mp3');
     // Ensure playback after user gesture if blocked
     try{ AudioManager.play(); }catch(e){}
   }catch(e){}

@@ -1,5 +1,6 @@
 import { el } from '../renderer.js';
 import { AudioManager } from '../../engine/audio.js';
+import { initMusic } from '../../engine/helpers.js';
 
 export function renderEnd(root, ctx){
   const rs = ctx.runSummary || { defeated: [], diedTo: null, ipEarned: 0 };
@@ -47,8 +48,7 @@ export function renderEnd(root, ctx){
 
   // When showing the end screen, play end music (stop previous audio first)
   try{
-    const musicCandidates = ['./assets/music/end.mp3','assets/music/end.mp3','/assets/music/end.mp3'];
-    AudioManager.init(musicCandidates[0], { autoplay:true, loop:false });
+    initMusic('end.mp3', { autoplay: true, loop: false });
   }catch(e){ /* ignore audio init failures */ }
 
   // Floating music control (bottom-right)

@@ -1,6 +1,7 @@
 import { el } from '../renderer.js';
 import { navigate } from '../router.js';
 import { AudioManager } from '../../engine/audio.js';
+import { splitNarrative } from './adventures/text_split.js';
 
 export function renderAdventureStart(root, ctx = {}){
 	const container = el('div',{class:'adventure-start-screen'},[]);
@@ -49,8 +50,8 @@ export function renderAdventureStart(root, ctx = {}){
 		const col = el('div',{class:'adventure-col', style:'width:520px;display:flex;flex-direction:column;align-items:center;'},[]);
 		const img = el('img',{src:ch.img, alt:ch.label, class:'adventure-thumb', style:'width:480px;height:240px;object-fit:cover;border-radius:10px;border:1px solid rgba(0,0,0,0.08);box-shadow:0 8px 20px rgba(0,0,0,0.12);transition:transform 180ms ease, box-shadow 180ms ease'});
 		img.addEventListener('error', ()=>{ img.style.background='#222'; img.style.display='block'; img.style.minHeight='240px'; img.src=''; });
-		img.addEventListener('mouseover', ()=>{ img.style.transform='scale(1.03)'; img.style.boxShadow='0 14px 30px rgba(0,0,0,0.24)'; });
-		img.addEventListener('mouseout', ()=>{ img.style.transform=''; img.style.boxShadow='0 8px 20px rgba(0,0,0,0.12)'; });
+		// Do not scale images on hover — keep thumbnails static for accessibility
+		// (previously: mouseover/mouseout set transform/boxShadow)
 		col.appendChild(img);
 		const btn = el('button',{class:'btn adventure-btn', style:'margin-top:12px;width:480px;padding:12px 16px;font-size:18px;font-weight:700;border-radius:10px;background:linear-gradient(180deg,#2563eb,#1e40af);color:#fff;border:none;box-shadow:0 6px 16px rgba(16,24,40,0.2);transition:transform 120ms ease, box-shadow 120ms ease'},[ ch.label ]);
 		btn.addEventListener('mouseover', ()=>{ try{ btn.style.transform='translateY(-3px)'; btn.style.boxShadow='0 12px 24px rgba(16,24,40,0.25)'; }catch(e){} });
@@ -64,5 +65,40 @@ export function renderAdventureStart(root, ctx = {}){
 	});
 
 	container.appendChild(choicesWrap);
+
+	// Debug navigation panel (visible when debug enabled)
+	try{
+		const debugOn = (ctx && ctx.meta && ctx.meta.debugEnabled) || (typeof window !== 'undefined' && typeof window.isDebugEnabled === 'function' && window.isDebugEnabled());
+		if(debugOn){
+			const dbg = el('div',{style:'position:fixed;left:18px;bottom:18px;z-index:10050;padding:10px;border-radius:8px;background:rgba(0,0,0,0.55);color:#fff;font-size:13px;display:flex;gap:8px;align-items:center'},[]);
+			const screens = [
+				['menu','Menu'],
+				['arcade_start','Arcade Start'],
+				['adventure_start','Adventure Start'],
+				['adventure_daggerford','Daggerford Scene 1'],
+				['adventure_daggerford_choice_1','Daggerford Choice 1'],
+				['adventure_daggerford_choice_1_result','Daggerford Choice 1 Result'],
+				['adventure_daggerford_scene_2','Daggerford Scene 2'],
+				['battle','Battle'],
+				['arcade_stats','Arcade Stats'],
+				['arcade_upgrades','Arcade Upgrades'],
+				['arcade_end','Arcade End'],
+				['encounter_end','Encounter End'],
+				['end','End Screen']
+			];
+			const sel = el('select',{}, screens.map(s => el('option',{value:s[0]},[s[1]])));
+			const go = el('button',{class:'btn', style:'padding:6px 8px;border-radius:6px'},['Go']);
+			const ctxChk = el('label',{style:'display:inline-flex;align-items:center;gap:6px;color:#ddd;margin-left:8px' },[ el('input',{type:'checkbox'}), el('span',{},['Pass ctx']) ]);
+			go.addEventListener('click', ()=>{
+				const target = sel.value;
+				const pass = ctxChk.querySelector('input') && ctxChk.querySelector('input').checked;
+				try{ if(pass) navigate(target, ctx || {}); else navigate(target); }catch(e){ try{ navigate('menu'); }catch(e){} }
+			});
+			dbg.appendChild(sel);
+			dbg.appendChild(go);
+			dbg.appendChild(ctxChk);
+			container.appendChild(dbg);
+		}
+	}catch(e){ }
 	root.appendChild(container);
 }

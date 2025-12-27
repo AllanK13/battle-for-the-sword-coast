@@ -210,6 +210,7 @@ body{background:linear-gradient(180deg,var(--bg),#071024);color:#e6eef8}
 .delete-save-btn:hover{transform:translateY(-3px);box-shadow:0 12px 26px rgba(185,28,28,0.36)}
 .hud{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:transparent;border-radius:6px;margin-bottom:12px}
 .panel{background:transparent;padding:12px;border-radius:8px}
+.battle-panel{overflow-x:hidden}
 .save-slot{background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(0,0,0,0.03));padding:10px;border-radius:10px;box-shadow:0 8px 18px rgba(0,0,0,0.35);border:1px solid rgba(255,255,255,0.03)}
 .save-slot .slot-title{font-size:16px;color:var(--accent);font-weight:900;margin-bottom:6px}
 .save-slot .muted{color:rgba(255,255,255,0.75);font-size:13px;margin-bottom:8px}
@@ -359,7 +360,7 @@ body{background:linear-gradient(180deg,var(--bg),#071024);color:#e6eef8}
   max-height:calc(100% - 72px);object-fit:contain;width:92%;height:auto;display:block;margin:0 auto}
 
 /* Enemy slide-in animation: start off-screen to the right, then transition to position */
-.enemy-area .card.slide-in-right{ transform: translateX(100%); opacity: 0; transition: transform 900ms cubic-bezier(.2,.9,.2,1), opacity 700ms ease; }
+.enemy-area .card.slide-in-right{ transform: translateX(120vw); opacity: 0; transition: transform 900ms cubic-bezier(.2,.9,.2,1), opacity 700ms ease; }
 .enemy-area .card.slide-in-right.slide-in-right-active{ transform: translateX(0); opacity: 1; }
 
 /* Input blocker used during animations to prevent clicks/keys */
@@ -458,7 +459,7 @@ body{background:linear-gradient(180deg,var(--bg),#071024);color:#e6eef8}
 .battle-top{display:flex;gap:18px;align-items:center}
 
 /* Nudge playfield upward so spaces sit slightly higher than the enemy card */
-.battle-top .playfield{ transform: translateY(-45px); }
+.battle-top .playfield{ transform: translateY(-20px); }
 
 /* How to Play screen styles */
 .help-panel{
@@ -490,6 +491,7 @@ body{background:linear-gradient(180deg,var(--bg),#071024);color:#e6eef8}
   flex: 0 0 auto;
   min-width: 320px;
   width: auto;
+  overflow-x: hidden;
 }
 
 /* ensure playfield aligns with enemy vertically (no manual offset) */
@@ -613,14 +615,14 @@ body{background:linear-gradient(180deg,var(--bg),#071024);color:#e6eef8}
 
 /* Formation-3: line up slots horizontally with overlap — slot0 front, slot1 middle, slot2 back */
 /* More separated horizontal arrangement for formation-3 */
-.playfield.formation-3 .playfield-row{ display:flex; align-items:center; justify-content:center; gap:64px; position:relative }
+.playfield.formation-3 .playfield-row{ display:flex; align-items:center; justify-content:center; gap:100px; position:relative }
 .playfield.formation-3 .playfield-row .card-wrap{ position:relative; margin:0; transform:none }
 .playfield.formation-3 .playfield-row .card-wrap[data-slot="2"]{ z-index:1 }
 .playfield.formation-3 .playfield-row .card-wrap[data-slot="1"]{ z-index:2 }
 .playfield.formation-3 .playfield-row .card-wrap[data-slot="0"]{ z-index:3 }
 
 @media (max-width:720px){
-  .playfield.formation-3 .playfield-row{ gap:28px }
+  .playfield.formation-3 .playfield-row{ gap:40px }
 }
 
 /* Responsive reductions for large formation column gaps on small screens */
@@ -671,8 +673,8 @@ body{background:linear-gradient(180deg,var(--bg),#071024);color:#e6eef8}
 .enemy-area .card{
   /* smaller wrapper */
   width:280px;
-  height:480px;
-  padding:5px; /* slightly reduced padding so image can fill more space */
+  height:520px;
+  padding:8px; /* slightly reduced padding so image can fill more space */
   border-radius:10px;
   background:linear-gradient(180deg, rgba(5,10,20,0.45), rgba(3,8,15,0.25));
   box-shadow:0 10px 28px rgba(2,6,20,0.55);
@@ -686,7 +688,7 @@ body{background:linear-gradient(180deg,var(--bg),#071024);color:#e6eef8}
    This works with the counter-scaling so the enemy remains visually constant. */
 .enemy-area .card{
   width:280px !important;
-  height:480px !important;
+  height:520px !important;
   max-width:none !important;
 }
 .enemy-area .card img{
@@ -1225,6 +1227,13 @@ body{
 .start-run-btn:focus{outline:3px solid rgba(255,80,80,0.3)}
 .start-run-btn[disabled]{opacity:0.5;cursor:not-allowed}
 .msg-item{padding:4px 6px}
+
+/* Choice screen fixed button row for two-button choices (blue buttons) */
+.choice-btn-row{position:fixed;left:50%;transform:translateX(-50%);bottom:28px;z-index:10002;display:flex;gap:12px}
+.choice-action-btn{background:linear-gradient(180deg,#2563eb,#1e40af);color:#fff;border:none;padding:12px 18px;border-radius:12px;font-weight:800;min-width:180px;cursor:pointer;box-shadow:0 10px 22px rgba(30,64,175,0.28)}
+.choice-action-btn:hover{transform:translateY(-3px);box-shadow:0 14px 30px rgba(30,64,175,0.36)}
+.choice-action-btn:active{transform:translateY(-1px)}
+.choice-action-btn:focus{outline:3px solid rgba(59,130,246,0.18)}
 
 /* Name labels shown above images for cards/summons/enemies */
 .summon-name, .card-name{

@@ -34,6 +34,12 @@ export function cardTile(item, opts={}){
   let tryIndex = 0;
   const img = el('img',{alt:item.name, class:'card-image'});
   // allow callers to force a specific image filename (e.g., per-encounter variant)
+  // Prefer an explicit override provided via `opts.imageOverride`, but
+  // also support an `imageOverride` property on the item itself so data
+  // files can point to alternate asset locations (e.g., `assets/adventure/...`).
+  if(!opts.imageOverride && item && item.imageOverride){
+    opts.imageOverride = item.imageOverride;
+  }
   if(opts.imageOverride){
     try{
       // if override looks like a path, use it; otherwise treat as asset filename
@@ -64,6 +70,16 @@ export function cardTile(item, opts={}){
     if(candidates.length>0){ img.src = './assets/'+encodeURIComponent(candidates[0])+'.png'; }
     else { img.style.display='none'; }
   }
+  // Special-case sizing for small assets (e.g., potion icons in adventure)
+  try{
+    const smallIds = new Set(['potion_of_healing']);
+    const overridePath = (opts.imageOverride || item && item.imageOverride || '') + '';
+    if((item && smallIds.has(item.id)) || overridePath.indexOf('potion_of_healing') !== -1){
+      img.style.width = '80px';
+      img.style.height = 'auto';
+      img.style.objectFit = 'contain';
+    }
+  }catch(e){}
   d.appendChild(img);
   // insert a name label above the image if present (shows character/summon/enemy names)
   if(item.name){

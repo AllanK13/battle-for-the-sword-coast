@@ -25,5 +25,17 @@
     "ip_cost": 20,
     "id": "volo",
     "starter": false
+  },
+  {
+    "name": "Potion of Healing",
+    "type": "Support",
+    "ability": "Heals a single hero 5 HP",
+    "restriction": "Once per run",
+    "adventure_only": true,
+    "requiresTarget": true,
+    "imageOverride": "assets/adventure/potion_of_healing.png",
+    "ip_cost": 0,
+    "id": "potion_of_healing",
+    "starter": false
   }
 ]

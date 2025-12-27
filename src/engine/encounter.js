@@ -1,4 +1,20 @@
 import { AudioManager } from './audio.js';
+import {
+  getPrimaryAbility,
+  parseDamageFromAbility,
+  applyDamageToHero,
+  killHero,
+  createHitEvent,
+  createProtectedEvent,
+  isHeroImmuneToAoE,
+  rollRandom,
+  checkHit,
+  checkCrit,
+  getSelectedAbility,
+  calculateHitChance,
+  calculateFinalDamage
+} from './encounter-helpers.js';
+import { getHeroId, getAbilityApCost } from './helpers.js';
 
 export function startEncounter(enemyDef, deck, rng, opts={}){
   const enemy = { ...enemyDef };
@@ -67,52 +83,6 @@ function _selectSingleTargetIndex(state, rng){
   return -1;
 }
 
-function parseDamageFromAbility(card){
-  // `card` may be either a card object or an ability-like object.
-  const abilityObj = (card && typeof card === 'object' && (card.ability || card.abilities)) ? card : {};
-  const text = (abilityObj.ability || (card && card.ability) || "") + "";
-  const nums = (text||"").match(/(\d+)/g);
-  if(!nums || nums.length === 0) return 0;
-  // prefer the last numeric value in the ability text (handles "Cure Wounds (4th level): Restore 5 HP")
-  return Number(nums[nums.length-1]);
-}
-
-// Helper to extract the primary ability object from a card definition.
-function getPrimaryAbility(obj){
-  if(!obj) return {};
-  try{
-    if(Array.isArray(obj.abilities) && obj.abilities.length>0){
-      return obj.abilities.find(a=>a.primary) || obj.abilities[0] || {};
-    }
-  }catch(e){}
-  // fallback to legacy top-level fields if present
-  return {
-    ability: obj.ability,
-    actionType: obj.actionType,
-    hitChance: obj.hitChance,
-    critChance: obj.critChance,
-    type: obj.type
-  };
-}
-
-// RNG helpers: unified roll functions that prefer a seeded RNG on state
-function _rngRoll(state){
-  try{
-    if(state && state.rng && typeof state.rng.rand === 'function') return state.rng.rand();
-  }catch(e){}
-  return Math.random();
-}
-
-function checkHit(state, chance){
-  const c = (typeof chance === 'number') ? chance : 1.0;
-  return _rngRoll(state) < c;
-}
-
-function checkCrit(state, chance){
-  const c = (typeof chance === 'number') ? chance : 0.0;
-  return _rngRoll(state) < c;
-}
-
 // Healer helper: heals a single target or the whole party depending on
 // the card's ability text or an explicit targetIndex of 'all'. Returns
 // a result object similar to the previous playHeroAction heal return.
@@ -149,13 +119,7 @@ function resolveSingleTargetAttack(state, dmg, attackIndex, attackName){
     if(h){
       // If this hero is protected (e.g., Willis), they take no damage
       if(h.protected && h.protected.turns > 0){
-        const heroName = h.base && h.base.name ? h.base.name : null;
-        const ev = { type:'hit', slot: idx, dmg: 0, tempTaken: 0, hpTaken: 0, remainingHp: h.hp, died:false, heroName };
-        ev.attackType = 'single';
-        if(typeof attackIndex === 'number') ev.attack = attackIndex+1;
-        if(attackName) ev.attackName = attackName;
-        ev.protected = true;
-        events.push(ev);
+        events.push(createProtectedEvent(h, idx, attackIndex, attackName, 'single'));
         return events;
       }
 
@@ -163,19 +127,9 @@ function resolveSingleTargetAttack(state, dmg, attackIndex, attackName){
       // defending now grants a 50% chance for the attack to miss. Here we
       // apply the damage passed in (defending does NOT halve single-target
       // damage any longer).
-      let remaining = dmg;
-      let tempTaken = 0;
-      if(h.tempHp && h.tempHp>0){ const take = Math.min(h.tempHp, remaining); h.tempHp -= take; tempTaken = take; remaining -= take; }
-      let hpTaken = 0;
-      if(remaining>0){ h.hp -= remaining; hpTaken = remaining; }
-      const died = h.hp <= 0;
-      const heroName = h.base && h.base.name ? h.base.name : null;
-      if(died){ state.exhaustedThisEncounter.push(h.base); state.playfield[idx] = null; }
-      const ev = { type:'hit', slot: idx, dmg: dmg, tempTaken, hpTaken, remainingHp: died?0:h.hp, died, heroName };
-      // mark event with attack type for UI/audio handling
-      ev.attackType = 'single';
-      if(typeof attackIndex === 'number') ev.attack = attackIndex+1;
-      if(attackName) ev.attackName = attackName;
+      const dmgInfo = applyDamageToHero(h, dmg);
+      if(h.hp <= 0) killHero(state, idx);
+      const ev = createHitEvent(h, idx, dmgInfo, attackIndex, attackName, 'single');
       events.push(ev);
     }
   }
@@ -201,37 +155,23 @@ function resolveMultiAttack(state, dmg, attackIndex, attackName){
 function resolveAoEAttack(state, baseDmg, attackIndex, attackName){
   const events = [];
   for(let i=0;i<state.playfield.length;i++){
-    // If formation 3 is active, the backline slot (index 2) is specially
-    // positioned and should be immune to AoE targeting by design — skip it.
-    try{ if(Number(state.formation) === 3 && i === 2) continue; }catch(e){}
+    // If formation 3 is active, the backline slot (index 2) is immune to AoE
+    if(isHeroImmuneToAoE(state, i)) continue;
+    
     const h = state.playfield[i];
     if(h){
       // If this hero is protected (e.g., Willis), they take no damage from AOE
       if(h.protected && h.protected.turns > 0){
-        const heroName = h.base && h.base.name ? h.base.name : null;
-        const ev = { type:'hit', slot: i, dmg: 0, tempTaken: 0, hpTaken: 0, remainingHp: h.hp, died:false, heroName };
-        ev.attackType = 'aoe';
-        if(typeof attackIndex === 'number') ev.attack = attackIndex+1;
-        if(attackName) ev.attackName = attackName;
-        ev.protected = true;
-        events.push(ev);
+        events.push(createProtectedEvent(h, i, attackIndex, attackName, 'aoe'));
         continue;
       }
       // AOE uses the full base damage; defending heroes still take half.
-      let remaining = baseDmg;
-      if(h.defending) remaining = Math.ceil(remaining/2);
-      let tempTaken = 0;
-      if(h.tempHp && h.tempHp>0){ const take = Math.min(h.tempHp, remaining); h.tempHp -= take; tempTaken = take; remaining -= take; }
-      let hpTaken = 0;
-      if(remaining>0){ h.hp -= remaining; hpTaken = remaining; }
-      const died = h.hp <= 0;
-      const heroName = h.base && h.base.name ? h.base.name : null;
-      if(died){ state.exhaustedThisEncounter.push(h.base); state.playfield[i] = null; }
-      const ev = { type:'hit', slot: i, dmg: baseDmg, tempTaken, hpTaken, remainingHp: died?0:h.hp, died, heroName };
-      // mark event with attack type for UI/audio handling
-      ev.attackType = 'aoe';
-      if(typeof attackIndex === 'number') ev.attack = attackIndex+1;
-      if(attackName) ev.attackName = attackName;
+      let actualDmg = baseDmg;
+      if(h.defending) actualDmg = Math.ceil(actualDmg/2);
+      
+      const dmgInfo = applyDamageToHero(h, actualDmg);
+      if(h.hp <= 0) killHero(state, i);
+      const ev = createHitEvent(h, i, { ...dmgInfo, totalTaken: baseDmg }, attackIndex, attackName, 'aoe');
       events.push(ev);
     }
   }
@@ -265,41 +205,30 @@ export function playHeroAttack(state, slotIndex, abilityIndex=null){
   const hero = state.playfield[slotIndex];
   if(!hero) return { success:false, reason:'no hero' };
   if(hero.stunnedTurns && hero.stunnedTurns>0) return { success:false, reason:'stunned' };
-  // prefer an explicitly-selected ability when provided
-  let primary = null;
-  try{
-    if(typeof abilityIndex === 'number' && hero && hero.base && Array.isArray(hero.base.abilities) && hero.base.abilities[abilityIndex]){
-      primary = hero.base.abilities[abilityIndex];
-    } else {
-      primary = getPrimaryAbility(hero.base);
-    }
-  }catch(e){ primary = getPrimaryAbility(hero.base); }
+  
+  const primary = getSelectedAbility(hero, abilityIndex);
   const baseDmg = parseDamageFromAbility(primary);
   const mult = state.nextAttackMultiplier || 1;
-  // read optional hit/crit chances from the hero card metadata
-  let hitChance = (primary && typeof primary.hitChance === 'number') ? primary.hitChance : 1.0;
-  // apply any per-hero temporary hit chance bonuses (from Assist)
-  try{ if(hero && typeof hero.hitBonus === 'number' && hero.hitBonus > 0){ hitChance = Math.min(1.0, hitChance + hero.hitBonus); } }catch(e){}
-  const critChance = (primary && typeof primary.critChance === 'number') ? primary.critChance : 0.0;
+  
+  // Calculate hit and crit chances
+  const baseHitChance = primary?.hitChance ?? 1.0;
+  const hitChance = calculateHitChance(hero, baseHitChance);
+  const critChance = primary?.critChance ?? 0.0;
+  
   // consume AP for the attack attempt
   state.ap -= 1;
+  
   // roll to hit
-  // if hero is blinded, their attacks have a 50% miss penalty
-  try{ if(hero && hero.blindedTurns && hero.blindedTurns>0){ hitChance = hitChance * 0.5; } }catch(e){}
   if(!checkHit(state, hitChance)){
     // attack missed — do not modify enemy HP
     if(mult !== 1) state.nextAttackMultiplier = 1;
     return { success:true, type: 'attack', dmg: 0, enemyHp: state.enemy.hp, missed: true };
   }
-  // hit: roll for crit
+  
+  // hit: roll for crit and calculate damage
   const isCrit = checkCrit(state, critChance);
-  let dmg = Math.floor(baseDmg * mult * (isCrit ? 2 : 1));
-  // physical damage penalty from enfeeble: halve final damage (rounded down)
-  try{
-    if(hero && hero.enfeebledTurns && hero.enfeebledTurns>0){
-      dmg = Math.floor(dmg/2);
-    }
-  }catch(e){}
+  const dmg = calculateFinalDamage(hero, baseDmg, isCrit, mult);
+  
   state.enemy.hp = (state.enemy.hp || 0) - dmg;
   if(mult !== 1) state.nextAttackMultiplier = 1;
   return { success:true, type: 'attack', dmg, enemyHp: state.enemy.hp, crit: isCrit, baseDmg };
@@ -311,19 +240,12 @@ export function playHeroAction(state, slotIndex, targetIndex=null, abilityIndex=
   const hero = state.playfield[slotIndex];
   if(!hero) return { success:false, reason:'no hero' };
   if(hero.stunnedTurns && hero.stunnedTurns>0) return { success:false, reason:'stunned' };
-  // prefer an explicitly-selected ability when provided
-  let primary = null;
-  try{
-    if(typeof abilityIndex === 'number' && hero && hero.base && Array.isArray(hero.base.abilities) && hero.base.abilities[abilityIndex]){
-      primary = hero.base.abilities[abilityIndex];
-    } else {
-      primary = getPrimaryAbility(hero.base);
-    }
-  }catch(e){ primary = getPrimaryAbility(hero.base); }
+  
+  const primary = getSelectedAbility(hero, abilityIndex);
   const ability = (primary && primary.ability) ? String(primary.ability).toLowerCase() : '';
   const amount = parseDamageFromAbility(primary);
   // normalize id for legendaries that may not have `base`
-  const hid = (hero.base && hero.base.id) ? hero.base.id : hero.cardId;
+  const hid = getHeroId(hero);
   // Determine explicit action type: prefer `actionType` then parse ability text.
   // Normalize to one of: 'dps', 'healer', 'support'. Default -> 'dps'.
   let actionType = (primary && primary.actionType) ? String(primary.actionType).toLowerCase() : null;
@@ -348,8 +270,8 @@ export function playHeroAction(state, slotIndex, targetIndex=null, abilityIndex=
   // Support: explicit id-based handling for support heroes (add more branches as needed)
   if(actionType === 'support'){
     // Normalize id and name for cases where the hero is a legendary (may lack `base`)
-    const hid = (hero.base && hero.base.id) ? hero.base.id : hero.cardId;
-    const hname = (hero.base && hero.base.name) ? hero.base.name : hid;
+    const hid = getHeroId(hero);
+    const hname = hero.base?.name || hid;
     // enforce once-per-round per support-id
     const sid = hid ? String(hid) : null;
     state.supportUsed = state.supportUsed || {};
@@ -386,7 +308,7 @@ export function playHeroAction(state, slotIndex, targetIndex=null, abilityIndex=
       if(state.abilityCooldowns[abilityKey] && state.abilityCooldowns[abilityKey] > 0){ return { success:false, reason:'cooldown' }; }
 
       // determine AP cost (default 1)
-      const apCost = (chosenAbility && typeof chosenAbility.ap_cost === 'number') ? Number(chosenAbility.ap_cost) : ((chosenAbility && typeof chosenAbility.apCost === 'number') ? Number(chosenAbility.apCost) : 1);
+      const apCost = getAbilityApCost(chosenAbility);
       if(typeof state.ap === 'number' && state.ap < apCost){ return { success:false, reason:'not_enough_ap' }; }
 
       if (!state.summonUsed) state.summonUsed = {};
@@ -754,7 +676,7 @@ export function enemyAct(state){
         const h = state.playfield[idx];
         // If defending, apply 50% dodge chance
         if(h.defending){
-          const dodgeMiss = _rngRoll(state) < 0.5;
+          const dodgeMiss = rollRandom(state) < 0.5;
           if(dodgeMiss){
             const ev = { type:'hit', slot: idx, dmg: 0, tempTaken: 0, hpTaken: 0, remainingHp: h.hp, died:false, heroName: h.base && h.base.name ? h.base.name : null };
             ev.attackType = 'single';
@@ -931,9 +853,21 @@ export function useSummon(state, summonDef, targetIndex=null){
   } 
   else {
     // fallback: try to parse numeric heal
-    const m = (summonDef.ability||'').match(/(\d+)/);
-    const v = m ? Number(m[1]) : null;
-    if(v){ state.playfield.forEach(h=>{ if(h) h.hp = Math.min(h.base.hp, h.hp + v); }); }
+    // special-case: potion_of_healing heals a single hero for 5 HP
+    if(id === 'potion_of_healing'){
+      const healAmount = 5;
+      const heroes = state.playfield || [];
+      if(!heroes.some(h=>h)) return { success:false, reason:'no_target' };
+      // Require an explicit targetIndex for the potion
+      if(typeof targetIndex !== 'number' || !heroes[targetIndex]) return { success:false, reason:'must_target' };
+      const target = heroes[targetIndex];
+      if(!target) return { success:false, reason:'no_target' };
+      target.hp = Math.min(target.base.hp, target.hp + healAmount);
+    } else {
+      const m = (summonDef.ability||'').match(/(\d+)/);
+      const v = m ? Number(m[1]) : null;
+      if(v){ state.playfield.forEach(h=>{ if(h) h.hp = Math.min(h.base.hp, h.hp + v); }); }
+    }
   }
   // mark used or set cooldown
   if(summonDef.restriction && summonDef.restriction.toLowerCase().includes('once per encounter')){
