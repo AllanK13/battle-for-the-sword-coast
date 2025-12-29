@@ -1,4 +1,4 @@
-const STORAGE_KEY = 'bftsc_arcade_meta_v1';
+const STORAGE_KEY = 'bftsc_meta_v1';
 const SLOT_KEY_PREFIX = 'bftsc_save_slot_v1_';
 const ADVENTURE_TEMP_KEY = 'bftsc_adventure_temp_v1';
 

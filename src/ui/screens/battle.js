@@ -105,6 +105,25 @@ function slotNode(slotObj, idx, handlers={}, highlight=false, targetHighlight=fa
 export function renderBattle(root, ctx){
   // Safety: remove any leftover input-blocker from previous animations
   try{ const prev = document.getElementById('vcg-input-blocker'); if(prev && prev.parentNode) prev.parentNode.removeChild(prev); }catch(e){}
+  // If a caller set `ctx.recruit` (from an adventure choice), place that hero into
+  // the first available playfield slot before rendering. Use ctx.placeHeroAt
+  // when available (created by the encounter session); clear `ctx.recruit`
+  // afterwards to avoid duplicate placements on re-render.
+  try{
+    if(ctx && ctx.recruit && typeof ctx.placeHeroAt === 'function' && ctx.encounter){
+      const id = String(ctx.recruit);
+      let allCards = (ctx.data && Array.isArray(ctx.data.cards)) ? ctx.data.cards.slice() : [];
+      try{ if(ctx.data && Array.isArray(ctx.data.legendary)) allCards = allCards.concat(ctx.data.legendary); }catch(e){}
+      const card = allCards.find(c => c && c.id === id);
+      if(card){
+        const slot = [0,1,2].find(i => !ctx.encounter.playfield[i]);
+        if(typeof slot === 'number'){
+          try{ ctx.placeHeroAt(slot, card); }catch(e){}
+        }
+      }
+      try{ delete ctx.recruit; }catch(e){}
+    }
+  }catch(e){}
   // Switch music to the appropriate battle track for this encounter.
   try{
     const enemy = (ctx && ctx.encounter && ctx.encounter.enemy) ? ctx.encounter.enemy : null;

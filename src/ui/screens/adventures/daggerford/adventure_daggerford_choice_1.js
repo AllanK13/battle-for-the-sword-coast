@@ -20,6 +20,23 @@ export function renderAdventureDaggerfordChoice1(root, params){
   container.appendChild(overlay);
   setTimeout(()=>{ try{ overlay.style.opacity = '1'; }catch(e){} }, 2200);
 
+  // Character portrait (Cree) - positioned at bottom left, outside text overlay but above background
+  const portrait = el('img',{src:'assets/cree_teen.png', alt:'Cree', style:'position:absolute;left:8%;bottom:-140%;z-index:7;max-height:50vh;width:auto;opacity:0;transition:opacity 2000ms ease;pointer-events:none'});
+  portrait.addEventListener('error', ()=>{ portrait.style.display='none'; });
+  portrait.addEventListener('load', ()=>{ setTimeout(()=>{ try{ portrait.style.opacity = '0.9'; }catch(e){} }, 2400); });
+  container.appendChild(portrait);
+
+  // Companion portraits (Shalendra, Volo) — positioned to the right of Cree, same vertical alignment and size
+  const shalendra = el('img',{src:'assets/shalendra.png', alt:'Shalendra', style:'position:absolute;left:64%;bottom:-140%;z-index:7;max-height:50vh;width:auto;opacity:0;transition:opacity 2000ms ease;pointer-events:none'});
+  shalendra.addEventListener('error', ()=>{ shalendra.style.display='none'; });
+  shalendra.addEventListener('load', ()=>{ setTimeout(()=>{ try{ shalendra.style.opacity = '0.9'; }catch(e){} }, 2400); });
+  container.appendChild(shalendra);
+
+  const volo = el('img',{src:'assets/volo.png', alt:'Volo', style:'position:absolute;left:90%;bottom:-140%;z-index:7;max-height:30vh;width:auto;opacity:0;transition:opacity 2000ms ease;pointer-events:none'});
+  volo.addEventListener('error', ()=>{ volo.style.display='none'; });
+  volo.addEventListener('load', ()=>{ setTimeout(()=>{ try{ volo.style.opacity = '0.9'; }catch(e){} }, 2400); });
+  container.appendChild(volo);
+
   const textWrap = el('div',{style:'position:relative;z-index:10;max-width:1000px;width:90%;height:60%;overflow:hidden;display:flex;align-items:flex-start;justify-content:center;padding:28px;margin-top:0vh;'},[]);
   const inner = el('div',{style:'color:#eee;font-size:20px;line-height:1.6;padding-bottom:24px;display:flex;flex-direction:column;gap:14px;align-items:flex-start;'},[]);
   const text = `

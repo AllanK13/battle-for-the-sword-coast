@@ -69,8 +69,8 @@ export function renderAdventureStart(root, ctx = {}){
 
 	// Debug navigation panel (visible when debug enabled)
 	try{
-		const debugOn = (ctx && ctx.meta && ctx.meta.debugEnabled)
-			|| (typeof loadMeta === 'function' && loadMeta().debugEnabled);
+		// Only respect the persisted meta debug flag from `meta.js`
+		const debugOn = (typeof loadMeta === 'function' && loadMeta().debugEnabled);
 		if(debugOn){
 			const dbg = el('div',{style:'position:fixed;left:18px;bottom:18px;z-index:10050;padding:10px;border-radius:8px;background:rgba(0,0,0,0.55);color:#fff;font-size:13px;display:flex;gap:8px;align-items:center'},[]);
 			const screens = [
@@ -80,6 +80,7 @@ export function renderAdventureStart(root, ctx = {}){
 				['adventure_daggerford','Daggerford Scene 1'],
 				['adventure_daggerford_choice_1','Daggerford Choice 1'],
 				['adventure_daggerford_choice_1_result','Daggerford Choice 1 Result'],
+				['adventure_daggerford_choice_2','Daggerford Choice 2'],
 				['adventure_daggerford_scene_2','Daggerford Scene 2'],
 				['battle','Battle'],
 				['arcade_stats','Arcade Stats'],

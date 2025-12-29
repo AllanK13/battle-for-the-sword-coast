@@ -29,6 +29,7 @@ import { renderAdventureStart } from './ui/screens/adventure_start.js';
 import { renderAdventureDaggerford } from './ui/screens/adventures/daggerford/adventure_daggerford_scene_1.js';
 import { renderAdventureDaggerfordChoice1 } from './ui/screens/adventures/daggerford/adventure_daggerford_choice_1.js';
 import { renderAdventureDaggerfordChoice1Result } from './ui/screens/adventures/daggerford/adventure_daggerford_choice_1_result.js';
+import { renderAdventureDaggerfordChoice2 } from './ui/screens/adventures/daggerford/adventure_daggerford_choice_2.js';
 import { renderAdventureDaggerfordScene2 } from './ui/screens/adventures/daggerford/adventure_daggerford_scene_2.js';
 import { renderStats } from './ui/screens/arcade_stats.js';
 import { renderHowTo } from './ui/screens/arcade_howto.js';
@@ -422,10 +423,18 @@ function createEncounterSession(enemyIndex, chosenIds, rng){
 
             // If this is an adventure and the defeated enemy is a thug, route to the choice cinematic
             try{
-              if(ctx && ctx.isAdventure && getEnemyKey(encounter.enemy) === 'thug'){
-                // navigate to the choice cinematic and pass the resume callback
-                navigate('adventure_daggerford_choice_1', { ctx, encounter, runSummary, resumeCallback: continueAfterCinematic });
-                return;
+              if(ctx && ctx.isAdventure){
+                const key = getEnemyKey(encounter.enemy);
+                if(key === 'thug'){
+                  // navigate to the choice cinematic and pass the resume callback
+                  navigate('adventure_daggerford_choice_1', { ctx, encounter, runSummary, resumeCallback: continueAfterCinematic });
+                  return;
+                }
+                if(key === 'red_wizard'){
+                  // after defeating the Red Wizard, show the second Daggerford choice cinematic
+                  navigate('adventure_daggerford_choice_2', { ctx, encounter, runSummary, resumeCallback: continueAfterCinematic });
+                  return;
+                }
               }
             }catch(e){ /* fall through to normal continuation */ }
 
@@ -630,6 +639,11 @@ function appStart(){
   register('adventure_daggerford_choice_1_result', (root, params)=>{
     initMusic('town.mp3');
     return renderAdventureDaggerfordChoice1Result(root, params || {});
+  });
+
+  register('adventure_daggerford_choice_2', (root, params)=>{
+    initMusic('town.mp3');
+    return renderAdventureDaggerfordChoice2(root, params || {});
   });
 
   register('adventure_daggerford_scene_2', (root, params)=>{
