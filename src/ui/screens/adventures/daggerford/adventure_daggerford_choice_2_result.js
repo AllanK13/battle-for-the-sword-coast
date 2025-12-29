@@ -5,9 +5,9 @@ import { saveMetaIfAllowed } from '../../../../engine/meta.js';
 import { splitNarrative } from '../text_split.js';
 import { addMusicControls } from '../../../music-controls.js';
 
-export function renderAdventureDaggerfordChoice1Result(root, params){
+export function renderAdventureDaggerfordChoice2Result(root, params){
   const ctx = (params && params.ctx) ? params.ctx : {};
-  const choice = (params && params.choice) ? params.choice : 'keep';
+  const choice = (params && params.choice) ? params.choice : 'kill';
   try{ initMusic('town.mp3'); }catch(e){}
 
   const container = el('div',{class:'adventure-cinematic', style:'position:relative;width:100%;height:100%;background:transparent;overflow:visible;color:#fff;display:flex;align-items:center;justify-content:center'},[]);
@@ -22,70 +22,87 @@ export function renderAdventureDaggerfordChoice1Result(root, params){
   container.appendChild(overlay);
   setTimeout(()=>{ try{ overlay.style.opacity = '1'; }catch(e){} }, 2200);
 
-  // If player returned the gold, show Curran (the priest) on-screen
-  if(choice === 'return'){
-    const curran = el('img',{src:'assets/curran.png', alt:'Curran', style:'position:absolute;left:36%;bottom:-220%;z-index:7;max-height:50vh;width:auto;opacity:0;transition:opacity 2000ms ease;pointer-events:none'});
-    curran.addEventListener('error', ()=>{ curran.style.display='none'; });
-    curran.addEventListener('load', ()=>{ setTimeout(()=>{ try{ curran.style.opacity = '0.9'; }catch(e){} }, 2400); });
-    container.appendChild(curran);
-  }
-
-  // Character portrait (Cree) - positioned at bottom left, outside text overlay but above background
-  const portrait = el('img',{src:'assets/cree_teen.png', alt:'Cree', style:'position:absolute;left:8%;bottom:-195%;z-index:7;max-height:50vh;width:auto;opacity:0;transition:opacity 2000ms ease;pointer-events:none'});
+  // Portraits: Cree (left), Shalendra and Volo (right)
+  const portrait = el('img',{src:'assets/cree_teen.png', alt:'Cree', style:'position:absolute;left:8%;bottom:-82%;z-index:7;max-height:50vh;width:auto;opacity:0;transition:opacity 2000ms ease;pointer-events:none'});
   portrait.addEventListener('error', ()=>{ portrait.style.display='none'; });
   portrait.addEventListener('load', ()=>{ setTimeout(()=>{ try{ portrait.style.opacity = '0.9'; }catch(e){} }, 2400); });
   container.appendChild(portrait);
 
-  // Companion portraits (Shalendra, Volo) — positioned to the right of Cree, same vertical alignment and size
-  const shalendra = el('img',{src:'assets/shalendra.png', alt:'Shalendra', style:'position:absolute;left:64%;bottom:-195%;z-index:7;max-height:50vh;width:auto;opacity:0;transition:opacity 2000ms ease;pointer-events:none'});
+  const shalendra = el('img',{src:'assets/shalendra.png', alt:'Shalendra', style:'position:absolute;left:64%;bottom:-82%;z-index:7;max-height:50vh;width:auto;opacity:0;transition:opacity 2000ms ease;pointer-events:none'});
   shalendra.addEventListener('error', ()=>{ shalendra.style.display='none'; });
   shalendra.addEventListener('load', ()=>{ setTimeout(()=>{ try{ shalendra.style.opacity = '0.9'; }catch(e){} }, 2400); });
   container.appendChild(shalendra);
 
-  const volo = el('img',{src:'assets/volo.png', alt:'Volo', style:'position:absolute;left:90%;bottom:-195%;z-index:7;max-height:30vh;width:auto;opacity:0;transition:opacity 2000ms ease;pointer-events:none'});
+  const volo = el('img',{src:'assets/volo.png', alt:'Volo', style:'position:absolute;left:90%;bottom:-82%;z-index:7;max-height:30vh;width:auto;opacity:0;transition:opacity 2000ms ease;pointer-events:none'});
   volo.addEventListener('error', ()=>{ volo.style.display='none'; });
   volo.addEventListener('load', ()=>{ setTimeout(()=>{ try{ volo.style.opacity = '0.9'; }catch(e){} }, 2400); });
   container.appendChild(volo);
 
+  // If player let him live, display Tor where Red Wizard was
+  if(choice === 'live'){
+    // Use pixel sizing computed once from the reference portrait so Tor does not resize with the window
+    const torWrap = el('div',{style:'position:absolute;left:35%;bottom:-98%;z-index:7;height:auto;width:auto;overflow:hidden;opacity:0;transition:opacity 2000ms ease;pointer-events:none;display:flex;align-items:center;justify-content:center'});
+    const tor = el('img',{src:'assets/tor.png', alt:'Tor', style:'height:100%;width:auto;'});
+    tor.addEventListener('error', ()=>{ torWrap.style.display='none'; });
+    tor.addEventListener('load', ()=>{
+      try{
+        // match the reference portrait pixel size once (no resize handler)
+        const ref = shalendra || portrait;
+        if(ref){
+          try{
+            const r = ref.getBoundingClientRect();
+            const scale = 1.08;
+            torWrap.style.width = Math.round(r.width * scale) + 'px';
+            torWrap.style.height = Math.round(r.height * scale) + 'px';
+          }catch(e){}
+        }
+      }catch(e){}
+      setTimeout(()=>{ try{ torWrap.style.opacity = '0.9'; }catch(e){} }, 2400);
+    });
+    torWrap.appendChild(tor);
+    container.appendChild(torWrap);
+  }
+
   // Adjust portrait vertical (bottom) positions based on the player's choice so layout reflects the decision
   try{
-    if(choice === 'return'){
-      // bring portraits up to be visible when Curran is present
-      portrait.style.bottom = '-195%';
-      shalendra.style.bottom = '-195%';
-      volo.style.bottom = '-195%';
+    if(choice === 'live'){
+      // lower portraits a bit to make room for Tor in the center (pixel-independent)
+      portrait.style.bottom = '-82%';
+      shalendra.style.bottom = '-82%';
+      volo.style.bottom = '-82%';
     } else {
-      // default positions when player keeps the gold
-      portrait.style.bottom = '-165%';
-      shalendra.style.bottom = '-165%';
-      volo.style.bottom = '-165%';
+      // default positions when wizard was killed or absent
+      portrait.style.bottom = '-180%';
+      shalendra.style.bottom = '-180%';
+      volo.style.bottom = '-180%';
     }
   }catch(e){}
 
   const textWrap = el('div',{style:'position:relative;z-index:10;max-width:1000px;width:90%;height:60%;overflow:hidden;display:flex;align-items:flex-start;justify-content:center;padding:28px;margin-top:0vh;'},[]);
   const inner = el('div',{style:'color:#eee;font-size:20px;line-height:1.6;padding-bottom:24px;display:flex;flex-direction:column;gap:14px;align-items:flex-start;'},[]);
   let text = '';
-  let btnLabel = 'Continue';
-  if(choice === 'return'){
+  let btnLabel = '';
+  if(choice === 'live'){
     text = `
-Curran’s eyes widen as the pouch is placed in his hands. He counts the coins once, then again, disbelief giving way to relief.|
-
-"You didn't have to do this," he says, his voice unsteady. "But I won't forget it."|
-
-Reaching into his pack, Curran produces a small glass vial filled with a faintly glowing red liquid.|
-
-"Please—take this. It's not much, but it might save your life someday."`;
-    btnLabel = 'Receive Potion of Healing';
+A short, armored figure emerges from the shadows, bearing the sigil of the Heroes of Faerûn. His presence is steady, authoritative.|
+“I am Tor,” he says. “And you have done well.” He looks down at the captured Red Wizard with clear disdain.|
+“Alive, he can be questioned. Interrogated. If others still serve Szass Tam, we will find them through him.”|
+Tor then turns back to Cree, his expression hardening. “But this victory comes with troubling news. What this wizard was doing is only part of a larger threat.”|
+He pauses, then reaches to his side and produces a massive warhammer, its surface etched with ancient runes.|
+“Return to Syranna. She will explain the rest.” He places the weapon into your hands.|
+“And take this. You will need it.”
+`;
+    btnLabel = 'Take Whelm';
   } else {
     text = `
-Cree tightens his grip on the pouch and turns away. The weight of the coins is reassuring, even as the noise of the street closes in around him.|
-
-Shalendra gives a short nod of approval. "You earned it." she says.|
-
-Volo says nothing, his expression unreadable as he adjusts his hat and looks down the road where Curran might have been.|
-
-The city moves on, indifferent as ever.`;
-    btnLabel = 'Keep the gold';
+The Red Wizard collapses, his magic finally silenced.|
+The air grows still.|
+You take the heavy pouch—coin taken from darker deeds.|
+No one comes. No one speaks.|
+The moment passes, and the road ahead remains unchanged.|
+Return to Syranna and report the job complete. 
+`;
+    btnLabel = 'Take 5 gold';
   }
 
   const sentences = splitNarrative(text, '|');
@@ -100,26 +117,25 @@ The city moves on, indifferent as ever.`;
   const actionBtn = el('button',{class:'choice-action-btn', style:'display:none;z-index:10040;position:fixed;left:50%;transform:translateX(-50%);bottom:28px'},[ btnLabel ]);
   actionBtn.addEventListener('click', ()=>{
     try{
-      if(choice === 'return' && ctx && ctx.isAdventure && ctx.meta){
-        try{ ctx.meta.ownedSummons = ctx.meta.ownedSummons || []; }catch(e){}
-        if(!ctx.meta.ownedSummons.includes('potion_of_healing')){
-          try{ ctx.meta.ownedSummons.push('potion_of_healing'); }catch(e){}
+      if(choice === 'live' && ctx && ctx.isAdventure && ctx.meta){
+        try{ ctx.meta.ownedLegendary = ctx.meta.ownedLegendary || []; }catch(e){}
+        if(!ctx.meta.ownedLegendary.includes('whelm')){
+          try{ ctx.meta.ownedLegendary.push('whelm'); }catch(e){}
           try{ saveMetaIfAllowed(ctx.meta, ctx); }catch(e){}
-          try{ if(typeof ctx.setMessage === 'function') ctx.setMessage('Received Potion of Healing'); }catch(e){}
+          try{ if(typeof ctx.setMessage === 'function') ctx.setMessage('Received Whelm'); }catch(e){}
         }
-      } else if(choice !== 'return' && ctx && ctx.isAdventure && ctx.meta){
+      } else if(choice === 'kill' && ctx && ctx.isAdventure && ctx.meta){
         try{ ctx.meta.gold = (typeof ctx.meta.gold === 'number') ? ctx.meta.gold : 0; }catch(e){}
         try{ ctx.meta.gold += 5; }catch(e){}
         try{ saveMetaIfAllowed(ctx.meta, ctx); }catch(e){}
         try{ if(typeof ctx.setMessage === 'function') ctx.setMessage('Gained 5 gold'); }catch(e){}
       }
     }catch(e){}
-    // Always navigate to the next cinematic scene instead of resuming the battle
-    try{ 
-      // Clear any stale cinematic callbacks before navigating to prevent auto-resumption
-      if(ctx) delete ctx.onCinematicComplete;
-      navigate('adventure_daggerford_scene_2', { ctx }); 
-    }catch(e){ console.error('Failed to navigate to scene 2:', e); }
+    try{
+      // Persist adventure-temp changes and continue to Scene 3
+      try{ if(ctx && ctx.meta) saveMetaIfAllowed(ctx.meta, ctx); }catch(e){}
+      navigate('adventure_daggerford_scene_3', { ctx });
+    }catch(e){ console.error('Failed to navigate to scene 3:', e); }
   });
 
   container.appendChild(actionBtn);

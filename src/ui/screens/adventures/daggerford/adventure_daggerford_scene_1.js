@@ -1,14 +1,15 @@
 import { el } from '../../../renderer.js';
-import { AudioManager } from '../../../../engine/audio.js';
 import { navigate } from '../../../router.js';
 import { initMusic } from '../../../../engine/helpers.js';
+import { AudioManager } from '../../../../engine/audio.js';
 import { splitNarrative } from '../text_split.js';
+import { addMusicControls } from '../../../music-controls.js';
 
 export function renderAdventureDaggerford(root, ctx = {}){
   const container = el('div',{class:'adventure-cinematic', style:'position:relative;width:100%;height:100%;background:transparent;overflow:visible;color:#fff;display:flex;align-items:center;justify-content:center'},[]);
 
   // Background image (fade-in) - use fixed pixel size after load to prevent resizing on window resize
-     const bg = el('img',{src:'assets/adventure/daggerford_street.jpg', alt:'Daggerford Streets', style:'position:absolute;left:50%;top:0;width:120vw;height:100vh;object-fit:auto;object-position:center top;transform-origin:top center;transform:translateX(-50%) scale(1.06);opacity:0;transition:opacity 4200ms ease, transform 4200ms ease'});
+  const bg = el('img',{src:'assets/adventure/daggerford_street.jpg', alt:'Daggerford Streets', style:'position:absolute;left:50%;top:0;width:120vw;height:100vh;object-fit:auto;object-position:center top;transform-origin:top center;transform:translateX(-50%) scale(1.06);opacity:0;transition:opacity 4200ms ease, transform 4200ms ease'});
   bg.addEventListener('error', ()=>{ bg.src='assets/adventure/daggerford_street.jpg'; });
   // Set fixed pixel dimensions once the image has loaded so it won't change on window resize
   bg.addEventListener('load', ()=>{
@@ -31,7 +32,7 @@ export function renderAdventureDaggerford(root, ctx = {}){
   setTimeout(()=>{ try{ overlay.style.opacity = '1'; }catch(e){} }, 2200);
 
   // Character portrait (Cree) - positioned at bottom left, outside text overlay but above background
-  const portrait = el('img',{src:'assets/cree_teen.png', alt:'Cree', style:'position:absolute;left:8%;bottom:-170%;z-index:7;max-height:50vh;width:auto;opacity:0;transition:opacity 2000ms ease;pointer-events:none'});
+  const portrait = el('img',{src:'assets/cree_teen.png', alt:'Cree', style:'position:absolute;left:8%;bottom:-180%;z-index:7;max-height:50vh;width:auto;opacity:0;transition:opacity 2000ms ease;pointer-events:none'});
   portrait.addEventListener('error', ()=>{ portrait.style.display='none'; });
   portrait.addEventListener('load', ()=>{ setTimeout(()=>{ try{ portrait.style.opacity = '0.9'; }catch(e){} }, 2400); });
   container.appendChild(portrait);
@@ -84,22 +85,20 @@ Cree is only just beginning his journey, lured to the city by the promise of opp
   setTimeout(startReveal, 2600);
 
   // Continue button placed at bottom of screen (shares style with Venture Forth)
-  const continueBtn = el('button',{class:'start-run-btn', style:'display:none;z-index:10040'},['Continue']);
+  const continueBtn = el('button',{class:'start-run-btn', style:'display:none;z-index:10040;background:linear-gradient(180deg,#2563eb,#1e40af);color:#fff;border:none;box-shadow:0 6px 16px rgba(16,24,40,0.2);padding:12px 18px;border-radius:8px'},['Continue']);
   continueBtn.addEventListener('click', ()=>{
     // play the same boom flourish as Venture Forth
     try{
-      const sfx = new Audio('./assets/music/boom.mp3');
-      try{
-        const userVol = (AudioManager && AudioManager.getVolume) ? (AudioManager.getVolume() || 1) : 1;
-        const master = (AudioManager && typeof AudioManager.masterMultiplier === 'number') ? AudioManager.masterMultiplier : 1;
-        sfx.volume = Math.max(0, Math.min(1, 0.8 * userVol * master));
-      }catch(e){}
-      const p = sfx.play(); if(p && p.catch) p.catch(()=>{});
+      // Use AudioManager so SFX respects global SFX settings and multipliers
+      try{ AudioManager.playSfx(['./assets/music/boom.mp3'], { volume: 0.5 }); }catch(e){}
     }catch(e){}
     try{
       if(ctx && typeof ctx.onCinematicComplete === 'function') ctx.onCinematicComplete();
-      else navigate('battle');
-    }catch(e){ navigate('battle'); }
+      else {
+        console.warn('No onCinematicComplete handler; returning to adventure start to begin proper run');
+        navigate('adventure_start');
+      }
+    }catch(e){ console.warn('onCinematicComplete failed', e); navigate('adventure_start'); }
   });
   container.appendChild(continueBtn);
 
@@ -110,25 +109,8 @@ Cree is only just beginning his journey, lured to the city by the promise of opp
     try{ AudioManager.play(); }catch(e){}
   }catch(e){}
 
-  // Floating music control (matches other screens)
-  try{
-    const musicBtn = el('button',{class:'btn music-btn floating icon', style:'position:fixed;right:18px;bottom:36px;z-index:10030;height:40px;display:flex;align-items:center;justify-content:center;padding:4px 8px;border-radius:6px;background:linear-gradient(180deg,#10b981,#047857);color:#fff;border:1px solid rgba(0,0,0,0.12);font-size:22px', title:'Music'},[ el('span',{style:'font-size:22px;line-height:1;display:inline-block'},[ AudioManager.isEnabled ? (AudioManager.isEnabled() ? '🔊' : '🔈') : '🔈' ]) ]);
-    const musicPanel = el('div',{class:'panel music-panel', style:'position:fixed;right:18px;bottom:76px;z-index:10030;display:none;padding:8px;border-radius:8px;box-shadow:0 8px 20px rgba(0,0,0,0.25)'},[]);
-    const volLabel = el('div',{},['Volume']);
-    const volInput = el('input',{type:'range', min:0, max:100, value: String(Math.round((AudioManager.getVolume ? AudioManager.getVolume() : 0.6) * 100)), style:'width:160px;display:block'});
-    volInput.addEventListener('input', (ev)=>{ const v = Number(ev.target.value || 0) / 100; try{ AudioManager.setVolume(v); }catch(e){} });
-    function syncControls(){ try{ const span = musicBtn.querySelector('span'); if(span) span.textContent = (AudioManager.isEnabled ? (AudioManager.isEnabled() ? '🔊' : '🔈') : (AudioManager.isEnabled() ? '🔊' : '🔈')); const v = Math.round((AudioManager.getVolume ? AudioManager.getVolume() : 0.6) * 100); volInput.value = String(v); }catch(e){} }
-    musicPanel.appendChild(volLabel);
-    musicPanel.appendChild(volInput);
-    let panelTimer = null;
-    function showPanel(){ syncControls(); musicPanel.style.display = 'block'; if(panelTimer) clearTimeout(panelTimer); panelTimer = setTimeout(()=>{ musicPanel.style.display = 'none'; panelTimer = null; }, 4000); }
-    musicBtn.addEventListener('click', ()=>{ try{ const on = AudioManager.toggle(); const span = musicBtn.querySelector('span'); if(span) span.textContent = on ? '🔊' : '🔈'; }catch(e){} syncControls(); showPanel(); });
-    musicBtn.addEventListener('mouseover', showPanel);
-    musicPanel.addEventListener('mouseover', ()=>{ if(panelTimer) clearTimeout(panelTimer); });
-    musicPanel.addEventListener('mouseleave', ()=>{ if(panelTimer) clearTimeout(panelTimer); panelTimer = setTimeout(()=>{ musicPanel.style.display='none'; panelTimer=null; }, 1000); });
-    container.appendChild(musicBtn);
-    container.appendChild(musicPanel);
-  }catch(e){ }
+  // Add music controls
+  addMusicControls(container);
 
   // Attach to root
   root.appendChild(container);

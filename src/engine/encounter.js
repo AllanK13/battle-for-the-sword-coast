@@ -863,6 +863,10 @@ export function useSummon(state, summonDef, targetIndex=null){
       const target = heroes[targetIndex];
       if(!target) return { success:false, reason:'no_target' };
       target.hp = Math.min(target.base.hp, target.hp + healAmount);
+    }
+    // special-case: potion_of_speed grants +1 AP immediately
+    else if(id === 'potion_of_speed'){
+      try{ state.ap = (state.ap || 0) + 1; }catch(e){}
     } else {
       const m = (summonDef.ability||'').match(/(\d+)/);
       const v = m ? Number(m[1]) : null;

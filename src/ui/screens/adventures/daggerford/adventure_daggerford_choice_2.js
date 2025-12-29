@@ -1,8 +1,8 @@
 import { el } from '../../../renderer.js';
 import { navigate } from '../../../router.js';
 import { initMusic } from '../../../../engine/helpers.js';
-import { AudioManager } from '../../../../engine/audio.js';
 import { splitNarrative } from '../text_split.js';
+import { addMusicControls } from '../../../music-controls.js';
 
 export function renderAdventureDaggerfordChoice2(root, params){
   const ctx = (params && params.ctx) ? params.ctx : {};
@@ -91,8 +91,8 @@ The wizard lowers his head and waits.
   const btnRow = el('div',{class:'choice-btn-row', style:'display:none;z-index:10040;gap:12px;'},[]);
   const bLive = el('button',{class:'choice-action-btn'},['Let him live']);
   const bKill = el('button',{class:'choice-action-btn'},['Kill him']);
-  bLive.addEventListener('click', ()=>{ try{ ctx.choice = 'live'; navigate('battle', ctx); }catch(e){ try{ navigate('battle'); }catch(e){} } });
-  bKill.addEventListener('click', ()=>{ try{ ctx.choice = 'kill'; navigate('battle', ctx); }catch(e){ try{ navigate('battle'); }catch(e){} } });
+  bLive.addEventListener('click', ()=>{ try{ ctx.choice = 'live'; navigate('adventure_daggerford_choice_2_result', { ctx, choice: 'live' }); }catch(e){ try{ navigate('adventure_daggerford_choice_2_result', { ctx, choice: 'live' }); }catch(e){} } });
+  bKill.addEventListener('click', ()=>{ try{ ctx.choice = 'kill'; navigate('adventure_daggerford_choice_2_result', { ctx, choice: 'kill' }); }catch(e){ try{ navigate('adventure_daggerford_choice_2_result', { ctx, choice: 'kill' }); }catch(e){} } });
   btnRow.appendChild(bLive);
   btnRow.appendChild(bKill);
   container.appendChild(btnRow);
@@ -100,12 +100,8 @@ The wizard lowers his head and waits.
   // Kick off reveal
   setTimeout(startReveal, 2600);
 
-  // Floating music control (matches other screens)
-  try{
-    const musicBtn = el('button',{class:'btn music-btn floating icon', style:'position:fixed;right:18px;bottom:36px;z-index:10030;height:40px;display:flex;align-items:center;justify-content:center;padding:4px 8px;border-radius:6px;background:linear-gradient(180deg,#10b981,#047857);color:#fff;border:1px solid rgba(0,0,0,0.12);font-size:22px', title:'Music'},[ AudioManager.isEnabled() ? '🔊' : '🔈' ]);
-    musicBtn.addEventListener('click', ()=>{ const on = AudioManager.toggle(); musicBtn.textContent = on ? '🔊' : '🔈'; });
-    container.appendChild(musicBtn);
-  }catch(e){}
+  // Add music controls
+  addMusicControls(container);
 
   root.appendChild(container);
   return container;

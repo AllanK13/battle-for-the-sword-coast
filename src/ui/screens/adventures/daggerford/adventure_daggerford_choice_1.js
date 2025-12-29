@@ -1,8 +1,8 @@
 import { el } from '../../../renderer.js';
 import { navigate } from '../../../router.js';
 import { initMusic } from '../../../../engine/helpers.js';
-import { AudioManager } from '../../../../engine/audio.js';
 import { splitNarrative } from '../text_split.js';
+import { addMusicControls } from '../../../music-controls.js';
 
 export function renderAdventureDaggerfordChoice1(root, params){
   const ctx = (params && params.ctx) ? params.ctx : {};
@@ -64,11 +64,8 @@ Both turn to Cree, awaiting his decision.`;
   btnRow.appendChild(b1); btnRow.appendChild(b2);
   container.appendChild(btnRow);
 
-  try{
-    const musicBtn = el('button',{class:'btn music-btn floating icon', style:'position:fixed;right:18px;bottom:36px;z-index:10030;height:40px;display:flex;align-items:center;justify-content:center;padding:4px 8px;border-radius:6px;background:linear-gradient(180deg,#10b981,#047857);color:#fff;border:1px solid rgba(0,0,0,0.12);font-size:22px', title:'Music'},[ AudioManager.isEnabled() ? '🔊' : '🔈' ]);
-    musicBtn.addEventListener('click', ()=>{ const on = AudioManager.toggle(); musicBtn.textContent = on ? '🔊' : '🔈'; });
-    container.appendChild(musicBtn);
-  }catch(e){}
+  // Add music controls
+  addMusicControls(container);
 
   root.appendChild(container);
   setTimeout(startReveal, 2600);

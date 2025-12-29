@@ -4,8 +4,15 @@ import { navigate } from '../../../router.js';
 import { initMusic } from '../../../../engine/helpers.js';
 import { saveMetaIfAllowed } from '../../../../engine/meta.js';
 import { splitNarrative } from '../text_split.js';
+import { addMusicControls } from '../../../music-controls.js';
 
 export function renderAdventureDaggerfordScene2(root, ctx = {}){
+  // If this cinematic was passed a live encounter `ctx`, temporarily suppress
+  // its `onStateChange` handler so background session updates don't force
+  // an automatic navigation back to the battle screen while the cinematic
+  // is visible. We'll restore it when the player chooses to resume.
+  const _originalOnState = (ctx && typeof ctx.onStateChange === 'function') ? ctx.onStateChange : null;
+  if(_originalOnState){ try{ ctx.onStateChange = function(){}; }catch(e){} }
   const container = el('div',{class:'adventure-cinematic', style:'position:relative;width:100%;height:100%;background:transparent;overflow:visible;color:#fff;display:flex;align-items:center;justify-content:center'},[]);
 
   const bg = el('img',{src:'assets/adventure/daggerford_tavern.jpg', alt:'Daggerford Tavern', style:'position:absolute;left:50%;top:0;width:120vw;height:100vh;object-fit:auto;object-position:center top;transform-origin:top center;transform:translateX(-50%) scale(1.2);opacity:0;transition:opacity 4200ms ease, transform 4200ms ease'});
@@ -49,8 +56,6 @@ One looks young and curious, but clearly powerful, with rock-like skin and elect
 
   function startReveal(){ let totalDelay = 0; pEls.forEach((p, idx) => { const base = 700; const extra = Math.min(2000, (p.textContent.length || 0) * 12); const revealDelay = base + extra; totalDelay += revealDelay; setTimeout(()=>{ try{ p.style.opacity = '1'; p.style.transform = 'translateY(0)'; }catch(e){} if(idx === pEls.length - 1){ setTimeout(revealContinue, 900); } }, totalDelay); totalDelay += 300; }); if(pEls.length === 0) revealContinue(); }
 
-  function revealContinue(){ continueBtn.style.display = 'inline-block'; }
-  setTimeout(startReveal, 2600);
   // Button row like choice_1: show two recruit buttons after reveal
   function revealContinue(){ btnRow.style.display = 'flex'; }
   setTimeout(startReveal, 2600);
@@ -60,6 +65,8 @@ One looks young and curious, but clearly powerful, with rock-like skin and elect
   const recruitLumalia = el('button',{class:'choice-action-btn'},['Recruit Lumalia']);
   recruitGrogu.addEventListener('click', ()=>{
     try{
+      // restore suppressed onStateChange before resuming battle
+      try{ if(_originalOnState) ctx.onStateChange = _originalOnState; }catch(e){}
       ctx.recruit = 'grogu';
       try{ ctx.meta = ctx.meta || {}; ctx.meta.lastRecruit = ctx.recruit; saveMetaIfAllowed(ctx.meta, ctx); }catch(e){}
       navigate('battle', ctx);
@@ -67,6 +74,8 @@ One looks young and curious, but clearly powerful, with rock-like skin and elect
   });
   recruitLumalia.addEventListener('click', ()=>{
     try{
+      // restore suppressed onStateChange before resuming battle
+      try{ if(_originalOnState) ctx.onStateChange = _originalOnState; }catch(e){}
       ctx.recruit = 'lumalia';
       try{ ctx.meta = ctx.meta || {}; ctx.meta.lastRecruit = ctx.recruit; saveMetaIfAllowed(ctx.meta, ctx); }catch(e){}
       navigate('battle', ctx);
@@ -77,6 +86,9 @@ One looks young and curious, but clearly powerful, with rock-like skin and elect
   container.appendChild(btnRow);
 
   try{ initMusic('town.mp3'); try{ AudioManager.play(); }catch(e){} }catch(e){}
+
+  // Add music controls
+  addMusicControls(container);
 
   root.appendChild(container);
   return container;

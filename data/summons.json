@@ -37,5 +37,17 @@
     "ip_cost": 0,
     "id": "potion_of_healing",
     "starter": false
+  },
+  {
+    "name": "Potion of Speed",
+    "type": "Support",
+    "ability": "Gain +1 AP",
+    "restriction": "Once per run",
+    "adventure_only": true,
+    "requiresTarget": false,
+    "imageOverride": "assets/adventure/potion_of_speed.png",
+    "ip_cost": 0,
+    "id": "potion_of_speed",
+    "starter": false
   }
 ]

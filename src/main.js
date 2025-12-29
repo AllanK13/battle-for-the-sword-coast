@@ -30,7 +30,12 @@ import { renderAdventureDaggerford } from './ui/screens/adventures/daggerford/ad
 import { renderAdventureDaggerfordChoice1 } from './ui/screens/adventures/daggerford/adventure_daggerford_choice_1.js';
 import { renderAdventureDaggerfordChoice1Result } from './ui/screens/adventures/daggerford/adventure_daggerford_choice_1_result.js';
 import { renderAdventureDaggerfordChoice2 } from './ui/screens/adventures/daggerford/adventure_daggerford_choice_2.js';
+import { renderAdventureDaggerfordChoice2Result } from './ui/screens/adventures/daggerford/adventure_daggerford_choice_2_result.js';
 import { renderAdventureDaggerfordScene2 } from './ui/screens/adventures/daggerford/adventure_daggerford_scene_2.js';
+import { renderAdventureDaggerfordScene3 } from './ui/screens/adventures/daggerford/adventure_daggerford_scene_3.js';
+import { renderAdventureDaggerfordVictory } from './ui/screens/adventures/daggerford/adventure_daggerford_victory.js';
+import { renderAdventureShop } from './ui/screens/adventures/adventure_shop.js';
+import { renderDaggerfordShop } from './ui/screens/adventures/daggerford/adventure_daggerford_shop.js';
 import { renderStats } from './ui/screens/arcade_stats.js';
 import { renderHowTo } from './ui/screens/arcade_howto.js';
 import { renderUpgrades } from './ui/screens/arcade_upgrades.js';
@@ -435,6 +440,11 @@ function createEncounterSession(enemyIndex, chosenIds, rng){
                   navigate('adventure_daggerford_choice_2', { ctx, encounter, runSummary, resumeCallback: continueAfterCinematic });
                   return;
                 }
+                if(key === 'szass_tam'){
+                  // After defeating Szass Tam in the Daggerford adventure, show victory screen
+                  navigate('adventure_daggerford_victory', { ctx, encounter, runSummary });
+                  return;
+                }
               }
             }catch(e){ /* fall through to normal continuation */ }
 
@@ -626,7 +636,7 @@ function appStart(){
   });
 
   // Cinematic screen for Streets of Daggerford
-  register('adventure_daggerford', (root, params)=>{
+  register('adventure_daggerford_scene_1', (root, params)=>{
     initMusic('town.mp3');
     return renderAdventureDaggerford(root, params || {});
   });
@@ -641,14 +651,61 @@ function appStart(){
     return renderAdventureDaggerfordChoice1Result(root, params || {});
   });
 
+  // Debug-friendly direct routes for choice1 results (preselect choice)
+  register('adventure_daggerford_choice_1_result_return', (root, params)=>{
+    initMusic('town.mp3');
+    return renderAdventureDaggerfordChoice1Result(root, { ...(params||{}), choice: 'return' });
+  });
+
+  register('adventure_daggerford_choice_1_result_keep', (root, params)=>{
+    initMusic('town.mp3');
+    return renderAdventureDaggerfordChoice1Result(root, { ...(params||{}), choice: 'keep' });
+  });
+  
   register('adventure_daggerford_choice_2', (root, params)=>{
     initMusic('town.mp3');
     return renderAdventureDaggerfordChoice2(root, params || {});
   });
 
+  register('adventure_daggerford_choice_2_result', (root, params)=>{
+    initMusic('town.mp3');
+    return renderAdventureDaggerfordChoice2Result(root, params || {});
+  });
+
+  // Debug-friendly direct routes for choice2 results (preselect choice)
+  register('adventure_daggerford_choice_2_result_live', (root, params)=>{
+    initMusic('town.mp3');
+    return renderAdventureDaggerfordChoice2Result(root, { ...(params||{}), choice: 'live' });
+  });
+
+  register('adventure_daggerford_choice_2_result_kill', (root, params)=>{
+    initMusic('town.mp3');
+    return renderAdventureDaggerfordChoice2Result(root, { ...(params||{}), choice: 'kill' });
+  });
+
   register('adventure_daggerford_scene_2', (root, params)=>{
     initMusic('town.mp3');
     return renderAdventureDaggerfordScene2(root, params || {});
+  });
+
+  register('adventure_daggerford_scene_3', (root, params)=>{
+    initMusic('town.mp3');
+    return renderAdventureDaggerfordScene3(root, params || {});
+  });
+
+  register('adventure_daggerford_victory', (root, params)=>{
+    initMusic('town.mp3');
+    return renderAdventureDaggerfordVictory(root, params || {});
+  });
+
+  register('adventure_shop', (root, params)=>{
+    initMusic('town.mp3');
+    return renderAdventureShop(root, params && params.ctx ? params.ctx : (params||{}));
+  });
+
+  register('adventure_daggerford_shop', (root, params)=>{
+    initMusic('town.mp3');
+    return renderDaggerfordShop(root, params || {});
   });
 
   // Adventure Mode start screen
@@ -662,7 +719,7 @@ function appStart(){
       onBack: ()=> navigate('menu'),
       onStartAdventure: (id)=>{
         // Navigate to cinematic for the selected adventure and pass a completion callback
-        navigate('adventure_daggerford', {
+        navigate('adventure_daggerford_scene_1', {
           data, meta,
           onCinematicComplete: ()=>{
             // Prepare a session-local meta so Adventure runs don't touch the global save
@@ -674,8 +731,8 @@ function appStart(){
               const chosen = ['cree_teen','shalendra'];
               const session = createEncounterSession(0, chosen, rng);
               // mark this session as an adventure so screens can avoid writing global save
-                try{ session.ctx.isAdventure = true; }catch(e){}
-                try{ session.ctx.meta = session.ctx.meta || {}; session.ctx.meta.ownedCards = session.ctx.meta.ownedCards || []; if(!session.ctx.meta.ownedCards.includes('cree_teen')) session.ctx.meta.ownedCards.push('cree_teen'); if(!session.ctx.meta.ownedCards.includes('shalendra')) session.ctx.meta.ownedCards.push('shalendra'); }catch(e){}
+              try{ session.ctx.isAdventure = true; }catch(e){}
+              try{ session.ctx.meta = session.ctx.meta || {}; session.ctx.meta.ownedCards = session.ctx.meta.ownedCards || []; if(!session.ctx.meta.ownedCards.includes('cree_teen')) session.ctx.meta.ownedCards.push('cree_teen'); if(!session.ctx.meta.ownedCards.includes('shalendra')) session.ctx.meta.ownedCards.push('shalendra'); }catch(e){}
               try{ session.ctx.meta.ownedSummons = session.ctx.meta.ownedSummons || []; ['garon','durnan','volo'].forEach(id=>{ if(!session.ctx.meta.ownedSummons.includes(id)) session.ctx.meta.ownedSummons.push(id); }); }catch(e){}
               try{ session.ctx.meta.gold = (typeof session.ctx.meta.gold === 'number') ? session.ctx.meta.gold : 0; }catch(e){}
               // persist the initial adventure session meta to the temporary adventure save

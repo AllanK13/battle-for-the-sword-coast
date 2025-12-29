@@ -1,7 +1,7 @@
 import { el } from '../renderer.js';
 import { navigate } from '../router.js';
-import { AudioManager } from '../../engine/audio.js';
 import { loadMeta } from '../../engine/meta.js';
+import { addMusicControls } from '../music-controls.js';
 import { splitNarrative } from './adventures/text_split.js';
 
 export function renderAdventureStart(root, ctx = {}){
@@ -20,25 +20,8 @@ export function renderAdventureStart(root, ctx = {}){
 		container.appendChild(menuBtn);
 	}catch(e){ }
 
-	// Floating music control (matches other screens)
-	try{
-		const musicBtn = el('button',{class:'btn music-btn floating icon', style:'position:fixed;right:18px;bottom:36px;z-index:10030;height:40px;display:flex;align-items:center;justify-content:center;padding:4px 8px;border-radius:6px;background:linear-gradient(180deg,#10b981,#047857);color:#fff;border:1px solid rgba(0,0,0,0.12);font-size:22px', title:'Music'},[ el('span',{style:'font-size:22px;line-height:1;display:inline-block'},[ AudioManager.isEnabled() ? '🔊' : '🔈' ]) ]);
-		const musicPanel = el('div',{class:'panel music-panel', style:'position:fixed;right:18px;bottom:76px;z-index:10030;display:none;padding:8px;border-radius:8px;box-shadow:0 8px 20px rgba(0,0,0,0.25)'},[]);
-		const volLabel = el('div',{},['Volume']);
-		const volInput = el('input',{type:'range', min:0, max:100, value: String(Math.round((AudioManager.getVolume ? AudioManager.getVolume() : 0.6) * 100)), style:'width:160px;display:block'});
-		volInput.addEventListener('input', (ev)=>{ const v = Number(ev.target.value || 0) / 100; AudioManager.setVolume(v); });
-		function syncControls(){ try{ const span = musicBtn.querySelector('span'); if(span) span.textContent = AudioManager.isEnabled() ? '🔊' : '🔈'; const v = Math.round((AudioManager.getVolume ? AudioManager.getVolume() : 0.6) * 100); volInput.value = String(v); }catch(e){} }
-		musicPanel.appendChild(volLabel);
-		musicPanel.appendChild(volInput);
-		let panelTimer = null;
-		function showPanel(){ syncControls(); musicPanel.style.display = 'block'; if(panelTimer) clearTimeout(panelTimer); panelTimer = setTimeout(()=>{ musicPanel.style.display = 'none'; panelTimer = null; }, 4000); }
-		musicBtn.addEventListener('click', ()=>{ const on = AudioManager.toggle(); const span = musicBtn.querySelector('span'); if(span) span.textContent = on ? '🔊' : '🔈'; syncControls(); showPanel(); });
-		musicBtn.addEventListener('mouseover', showPanel);
-		musicPanel.addEventListener('mouseover', ()=>{ if(panelTimer) clearTimeout(panelTimer); });
-		musicPanel.addEventListener('mouseleave', ()=>{ if(panelTimer) clearTimeout(panelTimer); panelTimer = setTimeout(()=>{ musicPanel.style.display='none'; panelTimer=null; }, 1000); });
-		container.appendChild(musicBtn);
-		container.appendChild(musicPanel);
-	}catch(e){ }
+	// Add music controls
+	addMusicControls(container);
 
 	// Adventure choice buttons with image placeholders above each (stacked vertically)
 	const choicesWrap = el('div',{class:'adventure-choices', style:'display:flex;flex-direction:column;gap:18px;align-items:center;margin-top:18px;'},[]);
@@ -75,28 +58,40 @@ export function renderAdventureStart(root, ctx = {}){
 			const dbg = el('div',{style:'position:fixed;left:18px;bottom:18px;z-index:10050;padding:10px;border-radius:8px;background:rgba(0,0,0,0.55);color:#fff;font-size:13px;display:flex;gap:8px;align-items:center'},[]);
 			const screens = [
 				['menu','Menu'],
-				['arcade_start','Arcade Start'],
 				['adventure_start','Adventure Start'],
-				['adventure_daggerford','Daggerford Scene 1'],
+				['adventure_daggerford_scene_1','Daggerford Scene 1'],
 				['adventure_daggerford_choice_1','Daggerford Choice 1'],
-				['adventure_daggerford_choice_1_result','Daggerford Choice 1 Result'],
-				['adventure_daggerford_choice_2','Daggerford Choice 2'],
+				['adventure_daggerford_choice_1_result_return','Daggerford Choice 1 Result (return)'],
+				['adventure_daggerford_choice_1_result_keep','Daggerford Choice 1 Result (keep)'],
 				['adventure_daggerford_scene_2','Daggerford Scene 2'],
+				['adventure_daggerford_choice_2','Daggerford Choice 2'],
+				['adventure_daggerford_choice_2_result_live','Daggerford Choice 2 Result (live)'],
+				['adventure_daggerford_choice_2_result_kill','Daggerford Choice 2 Result (kill)'],
+				['adventure_daggerford_scene_3','Daggerford Scene 3'],
+				['adventure_shop','Adventure Shop'],
+				['adventure_daggerford_shop','Daggerford Shop'],
+				['adventure_daggerford_victory','Daggerford Victory'],
 				['battle','Battle'],
-				['arcade_stats','Arcade Stats'],
-				['arcade_upgrades','Arcade Upgrades'],
-				['arcade_end','Arcade End'],
 				['encounter_end','Encounter End'],
 				['end','End Screen']
 			];
 			const sel = el('select',{}, screens.map(s => el('option',{value:s[0]},[s[1]])));
 			const go = el('button',{class:'btn', style:'padding:6px 8px;border-radius:6px'},['Go']);
 			const ctxChk = el('label',{style:'display:inline-flex;align-items:center;gap:6px;color:#ddd;margin-left:8px' },[ el('input',{type:'checkbox'}), el('span',{},['Pass ctx']) ]);
-			go.addEventListener('click', ()=>{
-				const target = sel.value;
-				const pass = ctxChk.querySelector('input') && ctxChk.querySelector('input').checked;
-				try{ if(pass) navigate(target, ctx || {}); else navigate(target); }catch(e){ try{ navigate('menu'); }catch(e){} }
-			});
+				go.addEventListener('click', ()=>{
+					const target = sel.value;
+					const pass = ctxChk.querySelector('input') && ctxChk.querySelector('input').checked;
+					try{
+						if(target === 'daggerford_shop'){
+							// always include the daggerford shop flag; include ctx when requested
+							const p = pass ? { ctx: ctx || {}, shop: 'daggerford' } : { ctx: {}, shop: 'daggerford' };
+							navigate('daggerford_shop', p);
+						} else {
+							if(pass) navigate(target, ctx || {});
+							else navigate(target);
+						}
+					}catch(e){ try{ navigate('menu'); }catch(e){} }
+				});
 			dbg.appendChild(sel);
 			dbg.appendChild(go);
 			dbg.appendChild(ctxChk);

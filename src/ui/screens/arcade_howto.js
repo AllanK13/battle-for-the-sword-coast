@@ -1,4 +1,5 @@
 import { el } from '../renderer.js';
+import { addMusicControls } from '../music-controls.js';
 
 export function renderHowTo(root, ctx){
   const wrapper = el('div',{style:'position:relative;padding-top:48px'},[]);
@@ -68,5 +69,9 @@ export function renderHowTo(root, ctx){
   container.appendChild(helpPanel);
   container.appendChild(back);
   wrapper.appendChild(container);
+
+  // Add music controls
+  try{ addMusicControls(wrapper); }catch(e){}
+
   root.appendChild(wrapper);
 }
