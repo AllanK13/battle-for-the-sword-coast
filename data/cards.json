@@ -496,12 +496,20 @@
     "hp": 22.0,
     "abilities": [
       {
+        "type": "Support",
+        "ability": "Lightning Arrow: 8 damage, 1 in 4 chance to stun for 1 turn",
+        "name": "Lightning Arrow: 8 damage, stun chance",
+        "actionType": "support",
+        "primary": true,
+        "cooldown": 3
+      },
+      {
         "type": "DPS",
-        "ability": "Lightning Arrow: 8 damage",
+        "ability": "Arrow: 8 damage",
         "actionType": "attack",
         "hitChance": 0.95,
         "critChance": 0.05,
-        "primary": true
+        "primary": false
       }
     ],
     "tier": 4,

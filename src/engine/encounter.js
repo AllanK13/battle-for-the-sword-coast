@@ -476,6 +476,80 @@ export function playHeroAction(state, slotIndex, targetIndex=null, abilityIndex=
       return { success:true, type:'support', slot: slotIndex, id:'kiefer', stunned: false, roll };
     }
 
+    // Fjlurganmyr: Lightning Arrow - 8 damage, 1 in 4 chance to stun for 1 turn, 3-turn cooldown
+    if (hid === 'fjlurganmyr'){
+      // Determine chosen ability (supports may have multiple abilities)
+      let chosenAbility = null;
+      try{
+        if(typeof abilityIndex === 'number' && hero && hero.base && Array.isArray(hero.base.abilities) && hero.base.abilities[abilityIndex]){
+          chosenAbility = hero.base.abilities[abilityIndex];
+        } else {
+          chosenAbility = (hero && hero.base && Array.isArray(hero.base.abilities)) ? (hero.base.abilities.find(a=>a.primary) || hero.base.abilities[0]) : null;
+        }
+      }catch(e){ chosenAbility = (hero && hero.base && Array.isArray(hero.base.abilities)) ? (hero.base.abilities.find(a=>a.primary) || hero.base.abilities[0]) : null; }
+
+      // Build a per-slot+ability key so cooldowns are per-ability, per-instance
+      let aiKey = 'primary';
+      try{
+        if(typeof abilityIndex === 'number') aiKey = String(abilityIndex);
+        else if(hero && hero.base && Array.isArray(hero.base.abilities)){
+          const idx = hero.base.abilities.indexOf(chosenAbility);
+          if(idx !== -1) aiKey = String(idx);
+        }
+      }catch(e){}
+      const inst = (hero && hero.cardId) ? hero.cardId : String(slotIndex);
+      const abilityKey = String(inst) + ':ability' + String(aiKey);
+
+      state.abilityCooldowns = state.abilityCooldowns || {};
+      // check cooldown for this specific ability instance
+      if(state.abilityCooldowns[abilityKey] && state.abilityCooldowns[abilityKey] > 0){ 
+        return { success:false, reason:'cooldown' }; 
+      }
+
+      // determine AP cost (default 1)
+      const apCost = getAbilityApCost(chosenAbility);
+      if(typeof state.ap === 'number' && state.ap < apCost){ 
+        return { success:false, reason:'not_enough_ap' }; 
+      }
+
+      // consume AP
+      if(apCost > 0) state.ap -= apCost;
+
+      // Apply 8 damage to enemy
+      const dmg = 8;
+      state.enemy.hp = Math.max(0, (state.enemy.hp || 0) - dmg);
+      if(state._ctx && state._ctx.meta) updateEnemyLowestHP(state._ctx.meta, state.enemy, state.enemy.hp, state._ctx);
+
+      // 1 in 4 chance (25%) to stun enemy for 1 turn
+      // Use deterministic RNG if available on state, else fallback to Math.random
+      const roll = (state.rng && typeof state.rng.int === 'function') ? state.rng.int(4) : Math.floor(Math.random() * 4);
+      let stunned = false;
+      if(roll === 0){ // 0 out of 0,1,2,3 = 25% chance
+        state.enemy.stunnedTurns = Math.max(state.enemy.stunnedTurns || 0, 1);
+        stunned = true;
+      }
+
+      // Set ability cooldown (read from data or default to 3)
+      const cdVal = (chosenAbility && typeof chosenAbility.cooldown === 'number') ? Number(chosenAbility.cooldown) : 3;
+      if(cdVal > 0) state.abilityCooldowns[abilityKey] = cdVal;
+
+      // Mark support as used
+      state.supportUsed['fjlurganmyr'] = true;
+
+      return { 
+        success:true, 
+        type:'support', 
+        slot: slotIndex, 
+        id:'fjlurganmyr', 
+        dmg, 
+        enemyHp: state.enemy.hp, 
+        stunned, 
+        roll,
+        cooldown: cdVal, 
+        abilityKey 
+      };
+    }
+
     // Default support: no implicit behavior. Unknown support actions do nothing.
     return { success:false, reason:'no support action' };
   }
