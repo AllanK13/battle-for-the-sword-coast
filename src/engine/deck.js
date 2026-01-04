@@ -1,7 +1,8 @@
 export function buildDeck(cardDefs, initialIds, rng){
   const cards = initialIds.map(id => ({...cardDefs.find(c=>c.id===id)}));
-  // New behavior: no draw/discard piles. All character cards start in hand for the encounter.
-  const hand = rng ? rng.shuffle(cards) : cards.slice();
+  // New behavior: no draw/discard piles. All character cards start in hand for the encounter
+  // and preserve the supplied order (no shuffling).
+  const hand = cards.slice();
   return {
     hand,
     // drawing is removed; callers should not attempt to draw.
