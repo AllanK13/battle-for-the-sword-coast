@@ -103,7 +103,7 @@ export function renderStats(root, ctx){
   container.appendChild(kvList(filteredDefeat));
 
   // Best (Lowest HP) section (moved here so it appears after Enemies Defeated)
-  container.appendChild(el('h3',{class:'section-title'},['Best Score (Lowest HP)']));
+  container.appendChild(el('h3',{class:'section-title'},['High Score (Lowest HP)']));
   const lowestHP = meta.enemyLowestHP || {};
   const lowestHPDisplay = {};
   enemies.forEach((e, idx)=>{
