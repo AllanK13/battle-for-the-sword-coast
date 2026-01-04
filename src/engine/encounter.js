@@ -14,7 +14,7 @@ import {
   calculateHitChance,
   calculateFinalDamage
 } from './encounter-helpers.js';
-import { getHeroId, getAbilityApCost } from './helpers.js';
+import { getHeroId, getAbilityApCost, updateEnemyLowestHP } from './helpers.js';
 
 export function startEncounter(enemyDef, deck, rng, opts={}){
   const enemy = { ...enemyDef };
@@ -230,6 +230,8 @@ export function playHeroAttack(state, slotIndex, abilityIndex=null){
   const dmg = calculateFinalDamage(hero, baseDmg, isCrit, mult);
   
   state.enemy.hp = (state.enemy.hp || 0) - dmg;
+  // Track lowest HP for this enemy (pass ctx from opts if available)
+  if(state._ctx && state._ctx.meta) updateEnemyLowestHP(state._ctx.meta, state.enemy, state.enemy.hp, state._ctx);
   if(mult !== 1) state.nextAttackMultiplier = 1;
   return { success:true, type: 'attack', dmg, enemyHp: state.enemy.hp, crit: isCrit, baseDmg };
 }
@@ -428,6 +430,7 @@ export function playHeroAction(state, slotIndex, targetIndex=null, abilityIndex=
     if (hid === 'brer'){
       const dmg = 5;
       state.enemy.hp = Math.max(0, (state.enemy.hp || 0) - dmg);
+      if(state._ctx && state._ctx.meta) updateEnemyLowestHP(state._ctx.meta, state.enemy, state.enemy.hp, state._ctx);
       // mark enemy so its next attack damage is halved
       state.enemy.nextAttackHalved = true;
       state.ap -= 1;
@@ -439,6 +442,7 @@ export function playHeroAction(state, slotIndex, targetIndex=null, abilityIndex=
     if (hid === 'bjurganmyr'){
       const dmg = 8;
       state.enemy.hp = Math.max(0, (state.enemy.hp || 0) - dmg);
+      if(state._ctx && state._ctx.meta) updateEnemyLowestHP(state._ctx.meta, state.enemy, state.enemy.hp, state._ctx);
       state.pendingEffects = state.pendingEffects || [];
       // schedule two future triggers (afterEnemy). times=2 means it will trigger after the next 2 enemy turns
       state.pendingEffects.push({ type: 'delayedDamage', id: 'bjurganmyr', slot: slotIndex, dmg: dmg, trigger: 'afterEnemy', times: 2, sourceName: hname });
@@ -451,6 +455,7 @@ export function playHeroAction(state, slotIndex, targetIndex=null, abilityIndex=
     if (hid === 'miley'){
       const dmg = 8;
       state.enemy.hp = Math.max(0, (state.enemy.hp || 0) - dmg);
+      if(state._ctx && state._ctx.meta) updateEnemyLowestHP(state._ctx.meta, state.enemy, state.enemy.hp, state._ctx);
       state.pendingEffects = state.pendingEffects || [];
       state.pendingEffects.push({ type: 'delayedDamage', id: 'miley', slot: slotIndex, dmg: dmg, trigger: 'afterEnemy', times: 2, sourceName: hname });
       state.ap -= 1;
@@ -570,8 +575,7 @@ export function enemyAct(state){
         if(eff && eff.trigger === 'afterEnemy'){
           if(eff.type === 'delayedDamage'){
             const dmg = Number(eff.dmg) || 0;
-            state.enemy.hp = Math.max(0, state.enemy.hp - dmg);
-            stunnedEvents.push({ type: 'enemyDamage', id: eff.id, slot: eff.slot, dmg: dmg, enemyHp: state.enemy.hp, sourceName: eff.sourceName });
+            state.enemy.hp = Math.max(0, state.enemy.hp - dmg);            if(state._ctx && state._ctx.meta) updateEnemyLowestHP(state._ctx.meta, state.enemy, state.enemy.hp, state._ctx);            stunnedEvents.push({ type: 'enemyDamage', id: eff.id, slot: eff.slot, dmg: dmg, enemyHp: state.enemy.hp, sourceName: eff.sourceName });
           }
           if(typeof eff.times === 'number' && eff.times > 1){
             const copy = Object.assign({}, eff, { times: eff.times - 1 });
@@ -760,6 +764,7 @@ export function enemyAct(state){
         if(eff.type === 'delayedDamage'){
           const dmg = Number(eff.dmg) || 0;
           state.enemy.hp = Math.max(0, state.enemy.hp - dmg);
+          if(state._ctx && state._ctx.meta) updateEnemyLowestHP(state._ctx.meta, state.enemy, state.enemy.hp, state._ctx);
           events.push({ type: 'enemyDamage', id: eff.id, slot: eff.slot, dmg: dmg, enemyHp: state.enemy.hp, sourceName: eff.sourceName });
           // If this effect should repeat for additional enemy turns, decrement its counter and keep it
           if(typeof eff.times === 'number' && eff.times > 1){
@@ -849,6 +854,7 @@ export function useSummon(state, summonDef, targetIndex=null){
     const max = state.enemy.maxHp || state.enemy.hp;
     const reduce = Math.floor((max * 0.5));
     state.enemy.hp = Math.max(0, state.enemy.hp - reduce);
+    if(state._ctx && state._ctx.meta) updateEnemyLowestHP(state._ctx.meta, state.enemy, state.enemy.hp, state._ctx);
     try{ AudioManager.playSfx(['./assets/sfx/wave.mp3'], { volume: 3.0 }); }catch(e){}
   } 
   else {

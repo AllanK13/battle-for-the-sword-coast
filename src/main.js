@@ -52,7 +52,8 @@ import {
   restoreStateHandlers,
   shouldSaveToGlobal,
   updateMetaStat,
-  updateEnemyCount
+  updateEnemyCount,
+  flushEnemyLowestHP
 } from './engine/helpers.js';
 
 const data = {};
@@ -368,6 +369,7 @@ function createEncounterSession(enemyIndex, chosenIds, rng){
               }
               // update persistent stats (only update global save for arcade runs)
               try{
+                flushEnemyLowestHP(); // ensure lowest HP records are saved immediately
                 updateMetaStat(meta, 'encountersBeaten', 1, ctx);
                 updateMetaStat(meta, 'furthestReachedEnemy', Math.max((meta.furthestReachedEnemy||0), currentEnemyIndex), ctx);
                 updateEnemyCount(meta, enemyKey, 'enemyDefeatCounts', ctx);
@@ -403,6 +405,7 @@ function createEncounterSession(enemyIndex, chosenIds, rng){
                 // choose AP per turn depending on session type (adventure sessions use their own AP)
                 const apPerTurnForNext = (ctx && ctx.isAdventure) ? (ctx.encounter && ctx.encounter.apPerTurn ? ctx.encounter.apPerTurn : 3) : (meta.apPerTurn || 3);
                 encounter = startEncounter({...enemy}, deck, RNG, { apPerTurn: apPerTurnForNext });
+                encounter._ctx = ctx; // Wire ctx so damage handlers can track lowest HP
                 ctx.encounter = encounter;
                 ctx.currentEnemyIndex = currentEnemyIndex;
                 // persist updated IP immediately
@@ -461,6 +464,7 @@ function createEncounterSession(enemyIndex, chosenIds, rng){
         // update run stats (failed run) and compute V interest if applicable
         let vInterest = 0;
         try{
+          flushEnemyLowestHP(); // ensure lowest HP records are saved immediately
           updateMetaStat(meta, 'runs', (meta.runs||0) + 1, ctx);
           updateMetaStat(meta, 'furthestReachedEnemy', Math.max((meta.furthestReachedEnemy||0), currentEnemyIndex), ctx);
           updateEnemyCount(meta, enemyKey, 'enemyVictoryCounts', ctx);
@@ -500,6 +504,9 @@ function createEncounterSession(enemyIndex, chosenIds, rng){
       navigate('battle', ctx);
     }
   };
+
+  // Wire ctx into encounter state so damage handlers can access meta
+  encounter._ctx = ctx;
 
   return { ctx, deck, encounter, runSummary, currentEnemyIndex };
 }

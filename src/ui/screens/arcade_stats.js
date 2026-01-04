@@ -102,6 +102,30 @@ export function renderStats(root, ctx){
   Object.entries(defeatCounts).forEach(([k,v])=>{ if(Number(v) > 0) filteredDefeat[k]=v; });
   container.appendChild(kvList(filteredDefeat));
 
+  // Best (Lowest HP) section (moved here so it appears after Enemies Defeated)
+  container.appendChild(el('h3',{class:'section-title'},['Best Score (Lowest HP)']));
+  const lowestHP = meta.enemyLowestHP || {};
+  const lowestHPDisplay = {};
+  enemies.forEach((e, idx)=>{
+    const id = e.id || String(idx);
+    const name = e.name || id;
+    const display = name;
+    const hpVal = lowestHP[id] !== undefined ? lowestHP[id] : lowestHP[name];
+    if(hpVal !== undefined) lowestHPDisplay[display] = hpVal + ' HP';
+  });
+  // Include any tracked enemies not in enemies list
+  Object.keys(lowestHP).forEach(k=>{
+    const matched = enemies.some((e, idx)=> (k === e.id || k === e.name || k === String(idx)));
+    if(!matched) lowestHPDisplay[k] = lowestHP[k] + ' HP';
+  });
+  const filteredLowestHP = {};
+  Object.entries(lowestHPDisplay).forEach(([k,v])=>{ if(v !== undefined) filteredLowestHP[k]=v; });
+  if(Object.keys(filteredLowestHP).length > 0){
+    container.appendChild(kvList(filteredLowestHP));
+  } else {
+    container.appendChild(el('div',{class:'muted',style:'padding:8px'},['No records yet']));
+  }
+
   container.appendChild(el('h3',{class:'section-title'},['Enemy TPKs']));
   const filteredVictory = {};
   Object.entries(victoryCounts).forEach(([k,v])=>{ if(Number(v) > 0) filteredVictory[k]=v; });
@@ -139,7 +163,12 @@ export function renderStats(root, ctx){
       const d = new Date(slotData.savedAt || 0);
       const runsPart = (slotData.meta && slotData.meta.runs !== undefined) ? ('Runs: '+(slotData.meta.runs||0)) : '';
       const namePart = slotData.name ? (String(slotData.name) + ' — ') : '';
-      return namePart + (runsPart ? (runsPart + ' — ' + d.toLocaleString()) : d.toLocaleString());
+      let bestPart = '';
+      if(slotData.meta && slotData.meta.enemyLowestHP){
+        const lowest = Object.entries(slotData.meta.enemyLowestHP).sort((a,b)=>a[1]-b[1])[0];
+        if(lowest) bestPart = ` — Best: ${lowest[0]} ${lowest[1]} HP`;
+      }
+      return namePart + (runsPart ? (runsPart + bestPart + ' — ' + d.toLocaleString()) : d.toLocaleString());
     }catch(e){ return 'Saved'; }
   }
 

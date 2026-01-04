@@ -97,6 +97,67 @@ export function updateEnemyCount(meta, enemyKey, countType, ctx) {
   }
 }
 
+// Debounced save state for enemyLowestHP updates
+let _pendingSave = null;
+let _saveTimer = null;
+
+// Optimized update for per-enemy lowest HP tracking
+// Only updates if hp is actually lower than existing, and debounces saves
+export function updateEnemyLowestHP(meta, enemy, hp, ctx) {
+  if (!meta || !enemy) return;
+  const enemyKey = getEnemyKey(enemy);
+  if (!enemyKey || enemyKey === 'unknown') return;
+  
+  // Record the observed HP value (allow negatives)
+  const observedHP = Number(hp);
+  if (Number.isNaN(observedHP)) return;
+
+  // Short-circuit: only update if this is actually lower
+  const existing = meta.enemyLowestHP?.[enemyKey];
+  if (existing !== undefined && observedHP >= existing) return;
+
+  // Update the stat (store observed HP, may be negative)
+  if (!meta.enemyLowestHP) meta.enemyLowestHP = {};
+  meta.enemyLowestHP[enemyKey] = observedHP;
+  
+  // Mark dirty and schedule debounced save
+  meta.__dirty = true;
+  _pendingSave = { meta, ctx };
+  
+  if (_saveTimer) clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(() => {
+    if (_pendingSave && _pendingSave.meta.__dirty) {
+      try {
+        const { saveMetaIfAllowed } = require('./meta.js');
+        saveMetaIfAllowed(_pendingSave.meta, _pendingSave.ctx);
+        _pendingSave.meta.__dirty = false;
+      } catch (e) {
+        // ignore save errors
+      }
+    }
+    _pendingSave = null;
+    _saveTimer = null;
+  }, 500); // 500ms debounce
+}
+
+// Force flush any pending enemyLowestHP saves (call at end-of-encounter or critical saves)
+export function flushEnemyLowestHP() {
+  if (_saveTimer) {
+    clearTimeout(_saveTimer);
+    _saveTimer = null;
+  }
+  if (_pendingSave && _pendingSave.meta.__dirty) {
+    try {
+      const { saveMetaIfAllowed } = require('./meta.js');
+      saveMetaIfAllowed(_pendingSave.meta, _pendingSave.ctx);
+      _pendingSave.meta.__dirty = false;
+    } catch (e) {
+      // ignore
+    }
+  }
+  _pendingSave = null;
+}
+
 // Try-catch wrapper for safer operations
 export function safeCall(fn, fallback = null) {
   try {

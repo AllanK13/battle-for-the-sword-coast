@@ -26,7 +26,8 @@ export function createMeta(){
     totalSummonUsage: {}, // cumulative across runs
     // enemy stats
     enemyDefeatCounts: {}, // map enemyId -> times defeated by player
-    enemyVictoryCounts: {} // map enemyId -> times that enemy defeated the party
+    enemyVictoryCounts: {}, // map enemyId -> times that enemy defeated the party
+    enemyLowestHP: {} // map enemyId -> lowest HP player has gotten them to
   };
 }
 
