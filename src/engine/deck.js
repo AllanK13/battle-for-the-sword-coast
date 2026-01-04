@@ -1,7 +1,14 @@
 export function buildDeck(cardDefs, initialIds, rng){
-  const cards = initialIds.map(id => ({...cardDefs.find(c=>c.id===id)}));
+  // Normalize inputs
+  const ids = Array.isArray(initialIds) ? initialIds.slice() : [];
+  // Build a lookup for cardDefs order so we can produce a deterministic hand
+  const indexMap = Object.create(null);
+  (Array.isArray(cardDefs) ? cardDefs : []).forEach((c,i) => { if(c && c.id) indexMap[c.id] = i; });
+  // Sort supplied ids by their order in cardDefs (stable) to remove any caller randomness
+  ids.sort((a,b) => (indexMap[a] || 0) - (indexMap[b] || 0));
+  const cards = ids.map(id => ({...((cardDefs||[]).find(c=>c.id===id) || { id })}));
   // New behavior: no draw/discard piles. All character cards start in hand for the encounter
-  // and preserve the supplied order (no shuffling).
+  // and preserve the deterministic order derived from `cardDefs`.
   const hand = cards.slice();
   return {
     hand,
