@@ -53,9 +53,11 @@ export function renderStats(root, ctx){
   });
   const mostUsed = Object.keys(charNameCounts).sort((a,b)=> (charNameCounts[b]||0)-(charNameCounts[a]||0))[0] || null;
   container.appendChild(el('h3',{class:'section-title'},['Characters']));
-  const mostUsedRow = el('div',{class:'panel most-used'},[ el('span',{style:'margin-right:8px'},['Most used:']), el('strong',{},[mostUsed || 'N/A']) ]);
-  container.appendChild(mostUsedRow);
-  container.appendChild(kvList(charNameCounts));
+  if (mostUsed || Object.keys(charNameCounts).length > 0) {
+    const mostUsedRow = el('div',{class:'panel most-used'},[ el('span',{style:'margin-right:8px'},['Most used:']), el('strong',{},[mostUsed || 'N/A']) ]);
+    container.appendChild(mostUsedRow);
+    container.appendChild(kvList(charNameCounts));
+  }
 
   const baseSummons = (ctx && ctx.data && ctx.data.summons) ? ctx.data.summons : [];
   const legendarySummons = (ctx && ctx.data && ctx.data.legendary) ? ctx.data.legendary.filter(l => l && typeof l.hp !== 'number') : [];
@@ -100,7 +102,9 @@ export function renderStats(root, ctx){
   container.appendChild(el('h3',{class:'section-title'},['Enemies Defeated']));
   const filteredDefeat = {};
   Object.entries(defeatCounts).forEach(([k,v])=>{ if(Number(v) > 0) filteredDefeat[k]=v; });
-  container.appendChild(kvList(filteredDefeat));
+  if (Object.keys(filteredDefeat).length > 0) {
+    container.appendChild(kvList(filteredDefeat));
+  }
 
   // Best (Lowest HP) section (moved here so it appears after Enemies Defeated)
   container.appendChild(el('h3',{class:'section-title'},['High Score (Lowest HP)']));
@@ -122,14 +126,14 @@ export function renderStats(root, ctx){
   Object.entries(lowestHPDisplay).forEach(([k,v])=>{ if(v !== undefined) filteredLowestHP[k]=v; });
   if(Object.keys(filteredLowestHP).length > 0){
     container.appendChild(kvList(filteredLowestHP));
-  } else {
-    container.appendChild(el('div',{class:'muted',style:'padding:8px'},['No records yet']));
   }
 
   container.appendChild(el('h3',{class:'section-title'},['Enemy TPKs']));
   const filteredVictory = {};
   Object.entries(victoryCounts).forEach(([k,v])=>{ if(Number(v) > 0) filteredVictory[k]=v; });
-  container.appendChild(kvList(filteredVictory));
+  if (Object.keys(filteredVictory).length > 0) {
+    container.appendChild(kvList(filteredVictory));
+  }
 
   const back = el('button',{class:'btn stats-back-btn', style:'position:absolute;right:12px;top:8px'},['Back']);
   back.addEventListener('click', ()=>{ if(ctx && ctx.onBack) ctx.onBack(); else if(window.navigate) window.navigate('arcade_start'); });
