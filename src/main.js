@@ -60,12 +60,10 @@ import { getNextStep, advanceAdventureStep } from './engine/adventure-flow.js';
 const data = {};
 let meta = loadMeta();
 
-// Debug flag: only respect the persisted arcade meta `debugEnabled` flag.
-(function applyDebugFlag(){
-  try{
-    meta.debugEnabled = !!meta.debugEnabled;
-  }catch(e){ /* ignore */ }
-})();
+// Ensure debug UI is controlled by code defaults (do not enable from saves).
+try{
+  meta.debugEnabled = !!(meta && meta.debugEnabled) && false; // force off by default
+}catch(e){ /* ignore */ }
 
 async function loadData(){
   async function fetchAny(candidates){
