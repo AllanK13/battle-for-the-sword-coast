@@ -152,8 +152,14 @@ AudioManager.playSfx = function(srcs, { volume = 1.0, loop = false } = {}){
       const s = new Audio(src);
       s.loop = !!loop;
       try{
-        // SFX volume should be independent of music volume; scale by masterMultiplier
-        const sfxVol = Math.max(0, Math.min(1, Number(volume) || 0));
+        // Make SFX volume follow the configured music volume so both stay in sync.
+        // The per-call `volume` parameter acts as a multiplier (0..1) applied to the
+        // current music volume stored in `this.volume`.
+        // Base SFX level is 30% louder than music volume
+        const musicBase = (typeof this.volume === 'number') ? this.volume : 0.15;
+        const loudnessFactor = 2.5; // 30% louder
+        const callMultiplier = (typeof volume === 'number') ? Number(volume) : 1.0;
+        const sfxVol = Math.max(0, Math.min(1, musicBase * loudnessFactor * callMultiplier));
         s.volume = Math.max(0, Math.min(1, sfxVol * this.masterMultiplier));
       }catch(e){}
       try{
