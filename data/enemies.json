@@ -266,7 +266,7 @@
   {
     "name": "Thug",
     "ip_reward": 0,
-    "hp": 2,
+    "hp": 32,
     "id": "thug",
     "attacks": [
       {

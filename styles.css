@@ -465,7 +465,7 @@ body{background:linear-gradient(180deg,var(--bg),#071024);color:#e6eef8}
   justify-content:center;
   margin-top: 50px;
 }
-.battle-scale{ overflow: visible; }
+.battle-scale{ overflow: visible; overflow-x: hidden; }
 .battle-scale .battle-panel{ /* base design width to scale from */
   width: 1100px; /* matches main content max-width; scaled down on small viewports */
 }
@@ -1207,6 +1207,7 @@ body{background:linear-gradient(180deg,var(--bg),#071024);color:#e6eef8}
 /* Allow scrolling past fixed bottom UI (history / controls) */
 html, body {
   height:100%;
+  overflow-x: hidden; /* prevent temporary horizontal scroll during enemy slide animations */
 }
 body{
   /* leave room for fixed panels (history bottom-right, controls bottom-left)

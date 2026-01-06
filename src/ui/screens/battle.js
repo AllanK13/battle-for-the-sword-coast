@@ -157,15 +157,15 @@ export function renderBattle(root, ctx){
   const apText = el('div',{class:'ap-display'},['AP: '+ctx.encounter.ap+'/'+ctx.encounter.apPerTurn]);
   const endRunBtn = el('button',{class:'btn end-run-btn'},['Give Up']);
   endRunBtn.addEventListener('click',()=>{
-    const ok = window.confirm('Give up? This will forfeit current progress and return to the start screen.');
+    const ok = window.confirm('Give up? This will forfeit current progress and return to the main menu.');
     if(!ok) return;
     try{ endRunBtn.setAttribute('disabled',''); }catch(e){}
     try{ if(ctx && ctx.meta) { ctx.meta.summonUsage = {}; try{ saveMetaIfAllowed(ctx.meta, ctx); }catch(e){} } }catch(e){ console.debug('GiveUp: saveMeta failed', e); }
     try{
       // Prevent any pending timeouts or callbacks from re-rendering the battle
       try{ if(ctx){ disableStateHandlers(ctx); } }catch(e){}
-      navigate('arcade_start');
-      console.debug('GiveUp: navigated to arcade_start');
+      // Navigate to the main menu. Use force to override adventure flow restrictions
+      navigate('menu', { force: true });
       return;
     }catch(e){
       console.debug('GiveUp: navigate threw', e);
