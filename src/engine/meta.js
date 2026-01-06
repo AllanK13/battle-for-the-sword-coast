@@ -33,7 +33,13 @@ export function createMeta(){
 
 
 export function saveMeta(meta){
-  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(meta)); return true }catch(e){ return false }
+  try{
+    // Do not persist the runtime-only debug flag in the global save.
+    const copy = Object.assign({}, meta);
+    try{ delete copy.debugEnabled; }catch(e){}
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(copy));
+    return true
+  }catch(e){ return false }
 }
 
 // Save helper that respects an optional render/context `ctx`.
@@ -53,7 +59,12 @@ export function saveMetaIfAllowed(meta, ctx){
 // so Adventure runs can persist session-level progress without touching
 // the global arcade save slots.
 export function saveAdventureTemp(meta){
-  try{ localStorage.setItem(ADVENTURE_TEMP_KEY, JSON.stringify(meta)); return true; }catch(e){ return false; }
+  try{
+    const copy = Object.assign({}, meta);
+    try{ delete copy.debugEnabled; }catch(e){}
+    localStorage.setItem(ADVENTURE_TEMP_KEY, JSON.stringify(copy));
+    return true;
+  }catch(e){ return false; }
 }
 
 export function loadAdventureTemp(){
@@ -122,7 +133,9 @@ export function buyLegendaryItem(meta, item){
 export function saveSlot(slotIndex, meta, name){
   try{
     if(!slotIndex || slotIndex < 1 || slotIndex > 3) return false;
-    const payload = { meta: meta, savedAt: Date.now(), name: (typeof name === 'string' ? name : undefined) };
+    const copy = Object.assign({}, meta);
+    try{ delete copy.debugEnabled; }catch(e){}
+    const payload = { meta: copy, savedAt: Date.now(), name: (typeof name === 'string' ? name : undefined) };
     localStorage.setItem(SLOT_KEY_PREFIX + String(slotIndex), JSON.stringify(payload));
     return true;
   }catch(e){ return false; }
