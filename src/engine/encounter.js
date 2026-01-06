@@ -256,8 +256,8 @@ export function playHeroAction(state, slotIndex, targetIndex=null, abilityIndex=
     else actionType = 'dps';
   }
   // If this is a legendary placed card without `base`, some supports rely on card id.
-  // Force support action for known support legendaries (e.g., bjurganmyr).
-  const supportLegendaries = ['bjurganmyr','miley'];
+  // Force support action for known support legendaries (e.g., bjlurganmyr).
+    const supportLegendaries = ['bjlurganmyr','miley'];
   if(hid && supportLegendaries.indexOf(hid) !== -1){
     actionType = 'support';
   }
@@ -438,17 +438,17 @@ export function playHeroAction(state, slotIndex, targetIndex=null, abilityIndex=
       return { success:true, type:'support', slot: slotIndex, id:'brer', dmg, enemyHp: state.enemy.hp, nextEnemyAttackHalved: true };
     }
 
-    // Bjurganmyr: immediate 8 damage, then 8 damage after the enemy act for the next 2 turns (stackable)
-    if (hid === 'bjurganmyr'){
+    // Bjlurganmyr: immediate 8 damage, then 8 damage after the enemy act for the next 2 turns (stackable)
+    if (hid === 'bjlurganmyr'){
       const dmg = 8;
       state.enemy.hp = Math.max(0, (state.enemy.hp || 0) - dmg);
       if(state._ctx && state._ctx.meta) updateEnemyLowestHP(state._ctx.meta, state.enemy, state.enemy.hp, state._ctx);
       state.pendingEffects = state.pendingEffects || [];
       // schedule two future triggers (afterEnemy). times=2 means it will trigger after the next 2 enemy turns
-      state.pendingEffects.push({ type: 'delayedDamage', id: 'bjurganmyr', slot: slotIndex, dmg: dmg, trigger: 'afterEnemy', times: 2, sourceName: hname });
+      state.pendingEffects.push({ type: 'delayedDamage', id: 'bjlurganmyr', slot: slotIndex, dmg: dmg, trigger: 'afterEnemy', times: 2, sourceName: hname });
       state.ap -= 1;
-      state.supportUsed['bjurganmyr'] = true;
-      return { success:true, type:'support', slot: slotIndex, id:'bjurganmyr', dmg, enemyHp: state.enemy.hp, scheduled: true };
+      state.supportUsed['bjlurganmyr'] = true;
+      return { success:true, type:'support', slot: slotIndex, id:'bjlurganmyr', dmg, enemyHp: state.enemy.hp, scheduled: true };
     }
 
     // Miley: immediate 8 damage, then 8 damage after the enemy act for the next 2 turns (stackable)

@@ -45,13 +45,13 @@
     "starter": false
   },
   {
-    "name": "Bjurganmyr",
+    "name": "Bjlurganmyr",
     "type": "Support",
     "hp": 30.0,
     "abilities": [
       {
         "name": "Spike Growth: 8 damage per turn",
-        "ability": "Spike Growth: 8 damage per turn for 3 turns",
+        "ability": "Spike Growth: 8 damage, 8 damage per turn for 2 turns",
         "actionType": "support",
         "primary": true
       }
@@ -59,7 +59,7 @@
     "tier": 5,
     "slot_cost": 5.0,
     "ip_cost": 100,
-    "id": "bjurganmyr",
+    "id": "bjlurganmyr",
     "starter": false
   },
   {
@@ -113,7 +113,7 @@
     "abilities": [
       {
         "name": "Dawn: 8 damage per turn",
-        "ability": "Dawn: 8 damage per turn for 3 turns",
+        "ability": "Dawn: 8 damage, 8 damage per turn for 2 turns",
         "actionType": "support",
         "primary": true
       }

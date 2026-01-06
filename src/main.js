@@ -687,7 +687,7 @@ function appStart(){
             if(!chosen.includes(id)) chosen.push(id);
           }
           // Ensure debug encounters always include these characters when available
-          const debugMandatory = ['robohoam','bjurganmyr','tor'];
+          const debugMandatory = ['robohoam','bjlurganmyr','tor'];
           debugMandatory.forEach(id => { if(!chosen.includes(id)) chosen.push(id); });
           // Trim to desired length but keep mandatory IDs
           if(chosen.length > desired){
