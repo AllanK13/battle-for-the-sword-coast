@@ -5,7 +5,7 @@
   --muted:#94a3b8;
   --ui-scale: 1;
 }
-html,body{height:100%;margin:0;font-family:system-ui,Segoe UI,Roboto,Arial}
+html,body{min-height:100%;margin:0;font-family:system-ui,Segoe UI,Roboto,Arial}
 body{background:linear-gradient(180deg,var(--bg),#071024);color:#e6eef8}
 #app{padding:20px;max-width:1100px;margin:0 auto}
 .row{display:flex;gap:12px;align-items:center}
@@ -165,6 +165,14 @@ body{background:linear-gradient(180deg,var(--bg),#071024);color:#e6eef8}
 }
 .upgrades-screen .summons-grid .card .card-image{ max-height: calc(100% - 72px) !important }
 
+/* Arcade-specific: slightly taller summons tiles to give extra breathing room */
+.arcade-upgrades .summons-grid .card-wrap,
+.arcade-upgrades .summons-grid .card{
+  height: 480px !important;
+  flex: 0 0 auto !important;
+}
+.arcade-upgrades .summons-grid .card .card-image{ max-height: calc(100% - 72px) !important }
+
 /* Legendary Store tiles: use a distinct (taller) height than other upgrades */
 .upgrades-screen .legendary-grid .card-wrap,
 .upgrades-screen .legendary-grid .card{
@@ -172,6 +180,26 @@ body{background:linear-gradient(180deg,var(--bg),#071024);color:#e6eef8}
   flex: 0 0 auto !important;
 }
 .upgrades-screen .legendary-grid .card .card-image{ max-height: calc(100% - 72px) !important }
+
+/* Arcade-specific: make the legendary tiles slightly taller to avoid clipping */
+.arcade-upgrades .legendary-grid .card-wrap,
+.arcade-upgrades .legendary-grid .card{
+  height: 500px !important;
+  flex: 0 0 auto !important;
+}
+.arcade-upgrades .legendary-grid .card .card-image{ max-height: calc(100% - 72px) !important }
+
+/* Arcade-specific: force legendary store to three columns */
+.arcade-upgrades .legendary-grid{
+  display: grid !important;
+  /* use fixed column width to preserve original card sizes */
+  grid-template-columns: repeat(3, 198px) !important;
+  gap:16px !important;
+  align-items:start !important;
+  justify-content: space-between !important;
+  width: 75% !important;
+  padding: 0 12px !important;
+}
 
 /* Make Blackrazor image smaller in the Legendary Store while preserving aspect ratio */
 .upgrades-screen .legendary-grid .card-wrap.blackrazor .card-image{
@@ -1206,7 +1234,6 @@ body{background:linear-gradient(180deg,var(--bg),#071024);color:#e6eef8}
 
 /* Allow scrolling past fixed bottom UI (history / controls) */
 html, body {
-  height:100%;
   overflow-x: hidden; /* prevent temporary horizontal scroll during enemy slide animations */
 }
 body{

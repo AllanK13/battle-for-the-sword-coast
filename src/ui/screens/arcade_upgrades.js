@@ -7,7 +7,7 @@ function tierName(n){ return n===1? 'Tier 1: Common' : n===2? 'Tier 2: Uncommon'
 
 export function renderUpgrades(root, ctx){
   root.innerHTML = '';
-  const wrapper = el('div',{class:'upgrades-screen', style:'position:relative;padding-top:48px'},[]);
+  const wrapper = el('div',{class:'upgrades-screen arcade-upgrades', style:'position:relative;padding-top:48px'},[]);
   const container = el('div',{class:'upgrades-container'},[]);
   // Back button (top-right) styled like stats back
   const back = el('button',{class:'btn stats-back-btn', style:'position:absolute;right:12px;top:8px'},['Back']);
