@@ -1,18 +1,23 @@
 import { el } from '../../../renderer.js';
 import { AudioManager } from '../../../../engine/audio.js';
 import { navigate } from '../../../router.js';
-import { initMusic } from '../../../../engine/helpers.js';
+import { initMusic, disableStateHandlers, restoreStateHandlers } from '../../../../engine/helpers.js';
 import { saveMetaIfAllowed } from '../../../../engine/meta.js';
+import { getNextStep, advanceAdventureStep } from '../../../../engine/adventure-flow.js';
 import { splitNarrative } from '../text_split.js';
 import { addMusicControls } from '../../../music-controls.js';
+import { attachCinematicAdvance } from '../cinematic.js';
 
-export function renderAdventureDaggerfordScene2(root, ctx = {}){
-  // If this cinematic was passed a live encounter `ctx`, temporarily suppress
-  // its `onStateChange` handler so background session updates don't force
-  // an automatic navigation back to the battle screen while the cinematic
-  // is visible. We'll restore it when the player chooses to resume.
-  const _originalOnState = (ctx && typeof ctx.onStateChange === 'function') ? ctx.onStateChange : null;
-  if(_originalOnState){ try{ ctx.onStateChange = function(){}; }catch(e){} }
+export function renderAdventureDaggerfordScene2(root, params = {}){
+  const ctx = (params && params.ctx) ? params.ctx : params;
+  
+  // Disable state handlers to prevent background session updates from
+  // forcing navigation while the cinematic is visible
+  const { prevOnState, prevSetMessage } = disableStateHandlers(ctx);
+  
+  // Set cinematic flag to provide additional guard
+  if (ctx) ctx._cinematicActive = true;
+  
   const container = el('div',{class:'adventure-cinematic', style:'position:relative;width:100%;height:100%;background:transparent;overflow:visible;color:#fff;display:flex;align-items:center;justify-content:center'},[]);
 
   const bg = el('img',{src:'assets/adventure/daggerford_tavern.jpg', alt:'Daggerford Tavern', style:'position:absolute;left:50%;top:0;width:120vw;height:100vh;object-fit:auto;object-position:center top;transform-origin:top center;transform:translateX(-50%) scale(1.2);opacity:0;transition:opacity 4200ms ease, transform 4200ms ease'});
@@ -54,6 +59,9 @@ One looks young and curious, but clearly powerful, with rock-like skin and elect
   textWrap.appendChild(inner);
   container.appendChild(textWrap);
 
+  // Attach left-click advancement helper
+  attachCinematicAdvance(container, pEls, { onComplete: ()=>{ try{ if(typeof revealContinue === 'function') revealContinue(); }catch(e){} try{ if(typeof revealButtons === 'function') revealButtons(); }catch(e){} } });
+
   function startReveal(){ let totalDelay = 0; pEls.forEach((p, idx) => { const base = 700; const extra = Math.min(2000, (p.textContent.length || 0) * 12); const revealDelay = base + extra; totalDelay += revealDelay; setTimeout(()=>{ try{ p.style.opacity = '1'; p.style.transform = 'translateY(0)'; }catch(e){} if(idx === pEls.length - 1){ setTimeout(revealContinue, 900); } }, totalDelay); totalDelay += 300; }); if(pEls.length === 0) revealContinue(); }
 
   // Button row like choice_1: show two recruit buttons after reveal
@@ -63,23 +71,147 @@ One looks young and curious, but clearly powerful, with rock-like skin and elect
   const btnRow = el('div',{class:'choice-btn-row', style:'display:none;z-index:10040;gap:12px;'},[]);
   const recruitGrogu = el('button',{class:'choice-action-btn'},['Recruit Grogu']);
   const recruitLumalia = el('button',{class:'choice-action-btn'},['Recruit Lumalia']);
-  recruitGrogu.addEventListener('click', ()=>{
+  recruitGrogu.addEventListener('click', async ()=>{
     try{
-      // restore suppressed onStateChange before resuming battle
-      try{ if(_originalOnState) ctx.onStateChange = _originalOnState; }catch(e){}
+      // Save recruit choice to meta
       ctx.recruit = 'grogu';
-      try{ ctx.meta = ctx.meta || {}; ctx.meta.lastRecruit = ctx.recruit; saveMetaIfAllowed(ctx.meta, ctx); }catch(e){}
+      try{ 
+        ctx.meta = ctx.meta || {}; 
+        ctx.meta.lastRecruit = ctx.recruit;
+        // Also add to owned cards for the adventure session
+        ctx.meta.ownedCards = ctx.meta.ownedCards || [];
+        // Ensure only the chosen recruit is present (remove the alternative)
+        try{ ctx.meta.ownedCards = ctx.meta.ownedCards.filter(id => id !== 'lumalia'); }catch(e){}
+        if (!ctx.meta.ownedCards.includes('grogu')) ctx.meta.ownedCards.push('grogu');
+        saveMetaIfAllowed(ctx.meta, ctx); 
+      }catch(e){}
+      
+      // Persist adventure meta (gold/consumables and deck state should be stored here)
+      try{ ctx.meta = ctx.meta || {}; ctx.meta.gold = (typeof ctx.meta.gold === 'number') ? ctx.meta.gold : 0; ctx.meta.potionCounts = ctx.meta.potionCounts || {}; saveMetaIfAllowed(ctx.meta, ctx); }catch(e){}
+
+      // Start a normal encounter using the existing deck-builder + startEncounter flow.
+      try{
+        if(!ctx.data || !ctx.data.enemies) throw new Error('Missing adventure data');
+        const { buildDeck } = await import('../../../../engine/deck.js');
+        const { startEncounter } = await import('../../../../engine/encounter.js');
+        // prefer reusing existing encounter RNG if present
+        const rng = (ctx && ctx.encounter && ctx.encounter.rng) ? ctx.encounter.rng : (await import('../../../../engine/rng.js')).createRNG();
+        const redWizard = ctx.data.enemies.find(e => e && e.id === 'red_wizard');
+        if(!redWizard) throw new Error('Red wizard not found');
+        const legendaryCards = (ctx.data.legendary || []).filter(l => l && typeof l.hp === 'number');
+        const cardDefs = (ctx.data.cards || []).concat(legendaryCards);
+        const chosen = (ctx && Array.isArray(ctx._initialChosen) && ctx._initialChosen.length>0) ? ctx._initialChosen : ((ctx.meta && Array.isArray(ctx.meta.ownedCards)) ? ctx.meta.ownedCards : []);
+        const deck = buildDeck(cardDefs, chosen, rng);
+        // Mutate the existing encounter object (closure in createEncounterSession depends on the original reference).
+        try{
+          const enc = ctx.encounter || {};
+          enc.enemy = { ...redWizard };
+          if(typeof enc.enemy.maxHp !== 'number') enc.enemy.maxHp = typeof enc.enemy.hp === 'number' ? enc.enemy.hp : (enc.enemy.maxHp || null);
+          enc.rng = rng;
+          enc.deck = deck;
+          enc.turn = 0;
+          enc.apPerTurn = (ctx.meta && ctx.meta.apPerTurn) ? ctx.meta.apPerTurn : 3;
+          enc.ap = enc.apPerTurn;
+          enc.playfield = [null,null,null];
+          enc.summons = [];
+          enc.exhaustedThisEncounter = [];
+          enc.summonUsed = {};
+          enc.summonCooldowns = {};
+          enc.supportUsed = {};
+          enc.abilityCooldowns = {};
+          enc.pendingEffects = [];
+          enc._nextHeroInstanceId = enc._nextHeroInstanceId || 1;
+          // Keep the same ctx.encounter object reference so outer closures operate on it
+          ctx.encounter = enc;
+        }catch(e){ console.error('Failed to mutate existing encounter object', e); }
+      }catch(e){ console.error('Failed to start encounter via normal flow', e); }
+
+      // Restore state handlers and clear cinematic flag
+      restoreStateHandlers(ctx, prevOnState, prevSetMessage);
+      if (ctx) ctx._cinematicActive = false;
+
+      // Clear any leftover enemySequence so the encounter won't swap to thugs
+      try{ if(ctx && Array.isArray(ctx.enemySequence)) ctx.enemySequence = []; }catch(e){}
+
+      // Ensure adventure flow advances so the next step is the Red Wizard battle.
+      try{
+        const next = getNextStep(ctx);
+        if(next && next.type === 'battle'){
+          try{ advanceAdventureStep(ctx); }catch(e){}
+        }
+      }catch(e){ console.error('Failed to advance adventure step before battle', e); }
+
       navigate('battle', ctx);
-    }catch(e){ try{ navigate('battle'); }catch(e){} }
+    }catch(e){ console.error('Recruit Grogu failed:', e); try{ navigate('battle', ctx); }catch(e){} }
   });
-  recruitLumalia.addEventListener('click', ()=>{
+  recruitLumalia.addEventListener('click', async ()=>{
     try{
-      // restore suppressed onStateChange before resuming battle
-      try{ if(_originalOnState) ctx.onStateChange = _originalOnState; }catch(e){}
+      // Save recruit choice to meta
       ctx.recruit = 'lumalia';
-      try{ ctx.meta = ctx.meta || {}; ctx.meta.lastRecruit = ctx.recruit; saveMetaIfAllowed(ctx.meta, ctx); }catch(e){}
+      try{ 
+        ctx.meta = ctx.meta || {}; 
+        ctx.meta.lastRecruit = ctx.recruit;
+        // Also add to owned cards for the adventure session
+        ctx.meta.ownedCards = ctx.meta.ownedCards || [];
+        // Ensure only the chosen recruit is present (remove the alternative)
+        try{ ctx.meta.ownedCards = ctx.meta.ownedCards.filter(id => id !== 'grogu'); }catch(e){}
+        if (!ctx.meta.ownedCards.includes('lumalia')) ctx.meta.ownedCards.push('lumalia');
+        saveMetaIfAllowed(ctx.meta, ctx); 
+      }catch(e){}
+      
+      // Persist adventure meta (gold/consumables and deck state should be stored here)
+      try{ ctx.meta = ctx.meta || {}; ctx.meta.gold = (typeof ctx.meta.gold === 'number') ? ctx.meta.gold : 0; ctx.meta.potionCounts = ctx.meta.potionCounts || {}; saveMetaIfAllowed(ctx.meta, ctx); }catch(e){}
+
+      // Start a normal encounter using the existing deck-builder and MUTATE the current encounter object.
+      try{
+        if(!ctx.data || !ctx.data.enemies) throw new Error('Missing adventure data');
+        const { buildDeck } = await import('../../../../engine/deck.js');
+        const rng = (ctx && ctx.encounter && ctx.encounter.rng) ? ctx.encounter.rng : (await import('../../../../engine/rng.js')).createRNG();
+        const redWizard = ctx.data.enemies.find(e => e && e.id === 'red_wizard');
+        if(!redWizard) throw new Error('Red wizard not found');
+        const legendaryCards = (ctx.data.legendary || []).filter(l => l && typeof l.hp === 'number');
+        const cardDefs = (ctx.data.cards || []).concat(legendaryCards);
+        const chosen = (ctx && Array.isArray(ctx._initialChosen) && ctx._initialChosen.length>0) ? ctx._initialChosen : ((ctx.meta && Array.isArray(ctx.meta.ownedCards)) ? ctx.meta.ownedCards : []);
+        const deck = buildDeck(cardDefs, chosen, rng);
+        try{
+          const enc = ctx.encounter || {};
+          enc.enemy = { ...redWizard };
+          if(typeof enc.enemy.maxHp !== 'number') enc.enemy.maxHp = typeof enc.enemy.hp === 'number' ? enc.enemy.hp : (enc.enemy.maxHp || null);
+          enc.rng = rng;
+          enc.deck = deck;
+          enc.turn = 0;
+          enc.apPerTurn = (ctx.meta && ctx.meta.apPerTurn) ? ctx.meta.apPerTurn : 3;
+          enc.ap = enc.apPerTurn;
+          enc.playfield = [null,null,null];
+          enc.summons = [];
+          enc.exhaustedThisEncounter = [];
+          enc.summonUsed = {};
+          enc.summonCooldowns = {};
+          enc.supportUsed = {};
+          enc.abilityCooldowns = {};
+          enc.pendingEffects = [];
+          enc._nextHeroInstanceId = enc._nextHeroInstanceId || 1;
+          ctx.encounter = enc;
+        }catch(e){ console.error('Failed to mutate existing encounter object', e); }
+      }catch(e){ console.error('Failed to start encounter via normal flow', e); }
+
+      // Restore state handlers and clear cinematic flag
+      restoreStateHandlers(ctx, prevOnState, prevSetMessage);
+      if (ctx) ctx._cinematicActive = false;
+
+      // Clear any leftover enemySequence so the encounter won't swap to thugs
+      try{ if(ctx && Array.isArray(ctx.enemySequence)) ctx.enemySequence = []; }catch(e){}
+
+      // Ensure adventure flow advances so the next step is the Red Wizard battle.
+      try{
+        const next = getNextStep(ctx);
+        if(next && next.type === 'battle'){
+          try{ advanceAdventureStep(ctx); }catch(e){}
+        }
+      }catch(e){ console.error('Failed to advance adventure step before battle', e); }
+
       navigate('battle', ctx);
-    }catch(e){ try{ navigate('battle'); }catch(e){} }
+    }catch(e){ console.error('Recruit Lumalia failed:', e); try{ navigate('battle', ctx); }catch(e){} }
   });
   btnRow.appendChild(recruitGrogu);
   btnRow.appendChild(recruitLumalia);

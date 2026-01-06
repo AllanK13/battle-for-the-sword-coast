@@ -1,13 +1,20 @@
 import { el } from '../../../renderer.js';
 import { navigate } from '../../../router.js';
-import { initMusic } from '../../../../engine/helpers.js';
-import { saveMetaIfAllowed } from '../../../../engine/meta.js';
+import { initMusic, disableStateHandlers, restoreStateHandlers } from '../../../../engine/helpers.js';
+import { saveMetaIfAllowed, saveAdventureTemp } from '../../../../engine/meta.js';
 import { splitNarrative } from '../text_split.js';
 import { addMusicControls } from '../../../music-controls.js';
+import { attachCinematicAdvance } from '../cinematic.js';
+import { advanceAdventureStep } from '../../../../engine/adventure-flow.js';
 
 export function renderAdventureDaggerfordChoice2Result(root, params){
   const ctx = (params && params.ctx) ? params.ctx : {};
   const choice = (params && params.choice) ? params.choice : 'kill';
+  
+  // Disable state handlers during cinematic
+  const { prevOnState, prevSetMessage } = disableStateHandlers(ctx);
+  if (ctx) ctx._cinematicActive = true;
+  
   try{ initMusic('town.mp3'); }catch(e){}
 
   const container = el('div',{class:'adventure-cinematic', style:'position:relative;width:100%;height:100%;background:transparent;overflow:visible;color:#fff;display:flex;align-items:center;justify-content:center'},[]);
@@ -72,13 +79,13 @@ export function renderAdventureDaggerfordChoice2Result(root, params){
       volo.style.bottom = '-82%';
     } else {
       // default positions when wizard was killed or absent
-      portrait.style.bottom = '-180%';
-      shalendra.style.bottom = '-180%';
-      volo.style.bottom = '-180%';
+      portrait.style.bottom = '-145%';
+      shalendra.style.bottom = '-145%';
+      volo.style.bottom = '-145%';
     }
   }catch(e){}
 
-  const textWrap = el('div',{style:'position:relative;z-index:10;max-width:1000px;width:90%;height:60%;overflow:hidden;display:flex;align-items:flex-start;justify-content:center;padding:28px;margin-top:0vh;'},[]);
+  const textWrap = el('div',{style:'position:relative;z-index:10;max-width:1000px;width:90%;height:60%;overflow:hidden;display:flex;align-items:flex-start;justify-content:flex-start;padding:28px 28px 28px 6vw;margin-top:0vh;'},[]);
   const inner = el('div',{style:'color:#eee;font-size:20px;line-height:1.6;padding-bottom:24px;display:flex;flex-direction:column;gap:14px;align-items:flex-start;'},[]);
   let text = '';
   let btnLabel = '';
@@ -110,6 +117,9 @@ Return to Syranna and report the job complete.
   textWrap.appendChild(inner);
   container.appendChild(textWrap);
 
+  // Attach left-click advancement helper
+  attachCinematicAdvance(container, pEls, { onComplete: ()=>{ try{ if(typeof revealButtons === 'function') revealButtons(); }catch(e){} } });
+
   function startReveal(){ let totalDelay = 0; pEls.forEach((p, idx) => { const base = 700; const extra = Math.min(2000, (p.textContent.length || 0) * 12); const revealDelay = base + extra; totalDelay += revealDelay; setTimeout(()=>{ try{ p.style.opacity = '1'; p.style.transform = 'translateY(0)'; }catch(e){} if(idx === pEls.length - 1){ setTimeout(revealButtons, 900); } }, totalDelay); totalDelay += 300; }); if(pEls.length === 0) revealButtons(); }
 
   function revealButtons(){ actionBtn.style.display = 'inline-block'; }
@@ -122,15 +132,22 @@ Return to Syranna and report the job complete.
         if(!ctx.meta.ownedLegendary.includes('whelm')){
           try{ ctx.meta.ownedLegendary.push('whelm'); }catch(e){}
           try{ saveMetaIfAllowed(ctx.meta, ctx); }catch(e){}
+          try{ saveAdventureTemp(ctx.meta); }catch(e){}
           try{ if(typeof ctx.setMessage === 'function') ctx.setMessage('Received Whelm'); }catch(e){}
         }
       } else if(choice === 'kill' && ctx && ctx.isAdventure && ctx.meta){
         try{ ctx.meta.gold = (typeof ctx.meta.gold === 'number') ? ctx.meta.gold : 0; }catch(e){}
         try{ ctx.meta.gold += 5; }catch(e){}
         try{ saveMetaIfAllowed(ctx.meta, ctx); }catch(e){}
+        try{ saveAdventureTemp(ctx.meta); }catch(e){}
         try{ if(typeof ctx.setMessage === 'function') ctx.setMessage('Gained 5 gold'); }catch(e){}
       }
     }catch(e){}
+    
+    // Restore handlers and clear cinematic flag before navigating
+    try{ restoreStateHandlers(ctx, prevOnState, prevSetMessage); }catch(e){}
+    if (ctx) ctx._cinematicActive = false;
+    
     try{
       // Persist adventure-temp changes and continue to Scene 3
       try{ if(ctx && ctx.meta) saveMetaIfAllowed(ctx.meta, ctx); }catch(e){}

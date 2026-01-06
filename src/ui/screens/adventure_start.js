@@ -38,12 +38,20 @@ export function renderAdventureStart(root, ctx = {}){
 		// (previously: mouseover/mouseout set transform/boxShadow)
 		col.appendChild(img);
 		const btn = el('button',{class:'btn adventure-btn', style:'margin-top:12px;width:480px;padding:12px 16px;font-size:18px;font-weight:700;border-radius:10px;background:linear-gradient(180deg,#2563eb,#1e40af);color:#fff;border:none;box-shadow:0 6px 16px rgba(16,24,40,0.2);transition:transform 120ms ease, box-shadow 120ms ease'},[ ch.label ]);
-		btn.addEventListener('mouseover', ()=>{ try{ btn.style.transform='translateY(-3px)'; btn.style.boxShadow='0 12px 24px rgba(16,24,40,0.25)'; }catch(e){} });
-		btn.addEventListener('mouseout', ()=>{ try{ btn.style.transform=''; btn.style.boxShadow='0 6px 16px rgba(16,24,40,0.2)'; }catch(e){} });
-		btn.addEventListener('click', ()=>{
-			if(ctx && typeof ctx.onStartAdventure === 'function') ctx.onStartAdventure(ch.id);
-			else navigate('menu');
-		});
+		// Disable and mark as "Coming Soon" for non-implemented adventures
+		if(ch.id === 'waterdeep' || ch.id === 'phandalin'){
+			try{ btn.classList.add('disabled'); btn.setAttribute('aria-disabled','true'); btn.disabled = true; }catch(e){}
+			try{ const badge = el('div',{class:'coming-soon-badge'},['Coming Soon']); btn.appendChild(badge); }catch(e){}
+			// Optional: notify host when attempted
+			btn.addEventListener('click', ()=>{ if(typeof ctx.onAttemptLocked === 'function') ctx.onAttemptLocked(ch.label); });
+		} else {
+			btn.addEventListener('mouseover', ()=>{ try{ btn.style.transform='translateY(-3px)'; btn.style.boxShadow='0 12px 24px rgba(16,24,40,0.25)'; }catch(e){} });
+			btn.addEventListener('mouseout', ()=>{ try{ btn.style.transform=''; btn.style.boxShadow='0 6px 16px rgba(16,24,40,0.2)'; }catch(e){} });
+			btn.addEventListener('click', ()=>{
+				if(ctx && typeof ctx.onStartAdventure === 'function') ctx.onStartAdventure(ch.id);
+				else navigate('menu');
+			});
+		}
 		col.appendChild(btn);
 		choicesWrap.appendChild(col);
 	});
@@ -82,10 +90,12 @@ export function renderAdventureStart(root, ctx = {}){
 					const target = sel.value;
 					const pass = ctxChk.querySelector('input') && ctxChk.querySelector('input').checked;
 					try{
-						if(target === 'daggerford_shop'){
-							// always include the daggerford shop flag; include ctx when requested
-							const p = pass ? { ctx: ctx || {}, shop: 'daggerford' } : { ctx: {}, shop: 'daggerford' };
-							navigate('daggerford_shop', p);
+								if(target === 'adventure_daggerford_shop'){
+									// always include the daggerford shop flag; include ctx when requested
+									// When not passing full ctx (debug), still include `data` so the shop
+									// has access to enemy/card definitions required to start battles.
+									const p = pass ? { ctx: ctx || {}, shop: 'daggerford' } : { ctx: {}, shop: 'daggerford', data: (ctx && ctx.data) ? ctx.data : undefined };
+									navigate('adventure_daggerford_shop', p);
 						} else {
 							if(pass) navigate(target, ctx || {});
 							else navigate(target);

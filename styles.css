@@ -368,6 +368,18 @@ body{background:linear-gradient(180deg,var(--bg),#071024);color:#e6eef8}
 
 /* Prefer class-based image sizing so inline attributes are avoided in renderer */
 .card-image{border-radius:10px;margin-bottom:8px;max-height:calc(100% - 72px);object-fit:contain;width:92%;height:auto;display:block;margin:0 auto}
+.battle-panel .hand-wrap .card .card-image{
+  /* Reduce the image height inside hand cards so name and abilities have room */
+  max-height: calc(100% - 140px) !important;
+  width: 80% !important;
+  margin-bottom:6px !important;
+}
+
+/* Allow card body to expand inside hand cards so text doesn't get clipped */
+.battle-panel .hand-wrap .card .card-body{
+  max-height: none !important;
+  overflow: visible !important;
+}
 .summons-small{display:flex;gap:8px;overflow-x:auto;padding:8px;align-items:flex-start;min-height:0}
 .summons-wrap{min-height:auto;padding:8px 6px;margin-top:12px;width:100%;max-height:none;box-shadow:none}
 .summons-small .card{width:162px;flex:0 0 auto;margin:0;border-radius:10px;display:flex;flex-direction:column;padding:10px;height:auto}
@@ -439,6 +451,9 @@ body{background:linear-gradient(180deg,var(--bg),#071024);color:#e6eef8}
 
 /* Battle panel layout: playfield left, enemy right */
 .battle-panel{display:flex;flex-direction:column;gap:12px}
+/* Allow the battle containers to show overflow from transformed children
+  (prevents visual clipping when inverse-scaling the enemy card). */
+.battle-panel{ overflow: visible; }
 
 /* Scale wrapper: applies a uniform scale to all battle elements using the --ui-scale variable.
    The JS sets --ui-scale on resize so the entire battle UI scales smoothly. */
@@ -450,6 +465,7 @@ body{background:linear-gradient(180deg,var(--bg),#071024);color:#e6eef8}
   justify-content:center;
   margin-top: 50px;
 }
+.battle-scale{ overflow: visible; }
 .battle-scale .battle-panel{ /* base design width to scale from */
   width: 1100px; /* matches main content max-width; scaled down on small viewports */
 }
@@ -727,6 +743,18 @@ body{background:linear-gradient(180deg,var(--bg),#071024);color:#e6eef8}
   text-shadow:0 6px 14px rgba(0,0,0,0.85) !important;
 }
 
+/* Reduce extreme HP size when formation-3 is active so it doesn't overflow the card
+   and push the End Turn button off-screen. Use a responsive clamp to keep large
+   numbers prominent on big screens while preventing clipping on narrow layouts. */
+.battle-top .playfield.formation-3 + .enemy-area .card .card-body .card-stat:first-child{
+  font-size: clamp(96px, 16vw, 198px) !important;
+  line-height:0.95 !important;
+}
+
+/* Give the enemy column more breathing room for the End Turn button in formation-3 */
+.battle-top .playfield.formation-3 + .enemy-area{ padding-bottom:18px; }
+.battle-top .playfield.formation-3 + .enemy-area .end-turn-btn{ margin-bottom:8px; }
+
 @media (max-width:1000px){
   /* Keep enemy card at its base fixed size on medium screens to prevent
      layout-driven shrinking. Allow only image tweaks. */
@@ -777,6 +805,15 @@ body{background:linear-gradient(180deg,var(--bg),#071024);color:#e6eef8}
   margin: 0 auto !important;
   object-fit: contain !important;
 }
+
+/* Fix: allow enemy visuals to overflow so large HP / buttons are not clipped
+   (formation-3 and inverse-scaling interactions were causing clipping) */
+.enemy-area,
+.enemy-area .card,
+.enemy-area .card .card-body {
+  overflow: visible !important;
+}
+.enemy-area .end-turn-btn{ z-index:120; }
 
 
 /* make buttons inside playfield slots use normal font-weight */
@@ -1516,6 +1553,18 @@ body.dragging-active .card-wrap.panel{
 /* Small badge shown on disabled menu modes */
 .menu-button{ position:relative }
 .coming-soon-badge{ position:absolute; left:120px; top:2px; background:rgba(0,0,0,0.6); color:#cbd5e1; padding:6px 8px; border-radius:8px; font-size:12px; font-weight:800; pointer-events:none; text-transform:uppercase; letter-spacing:0.6px }
+
+/* Adventure buttons: ensure badge overlays the button text */
+.adventure-btn{ position: relative; }
+.adventure-btn > .coming-soon-badge{
+  left:12px;
+  top:50%;
+  transform:translateY(-50%);
+  pointer-events:none;
+  font-size:12px;
+  padding:6px 8px;
+  border-radius:8px;
+}
 
 /* Arcade button styling */
 .menu-button.arcade{ background:linear-gradient(180deg,#60a5fa,#2563eb); color:#fff; padding:20px 24px; font-size:22px; font-weight:900; border-radius:14px; border:2px solid rgba(0,0,0,0.2); box-shadow: 0 18px 44px rgba(37,99,235,0.28); display:flex; align-items:center; justify-content:center; gap:10px }

@@ -3,6 +3,8 @@ import { navigate } from '../../../router.js';
 import { initMusic } from '../../../../engine/helpers.js';
 import { splitNarrative } from '../text_split.js';
 import { addMusicControls } from '../../../music-controls.js';
+import { attachCinematicAdvance } from '../cinematic.js';
+import { advanceAdventureStep } from '../../../../engine/adventure-flow.js';
 
 export function renderAdventureDaggerfordChoice1(root, params){
   const ctx = (params && params.ctx) ? params.ctx : {};
@@ -40,7 +42,7 @@ export function renderAdventureDaggerfordChoice1(root, params){
   const textWrap = el('div',{style:'position:relative;z-index:10;max-width:1000px;width:90%;height:60%;overflow:hidden;display:flex;align-items:flex-start;justify-content:center;padding:28px;margin-top:0vh;'},[]);
   const inner = el('div',{style:'color:#eee;font-size:20px;line-height:1.6;padding-bottom:24px;display:flex;flex-direction:column;gap:14px;align-items:flex-start;'},[]);
   const text = `
-With the help of two passersby—Shalendra and Volo—Cree manages to drive off the thugs. A search of their bodies reveals a small pouch containing five gold pieces.|
+With the help of two passersby — Shalendra and Volo — Cree manages to drive off the thugs. A search of their bodies reveals a small pouch containing five gold pieces.|
 
 Volo exhales slowly. “I recognize this pouch,” he says. “It was stolen from a local priest named Curran. He doesn’t live far from here, and we should return his gold.”|
 
@@ -52,6 +54,9 @@ Both turn to Cree, awaiting his decision.`;
   textWrap.appendChild(inner);
   container.appendChild(textWrap);
 
+  // Attach left-click advancement helper
+  attachCinematicAdvance(container, pEls, { onComplete: ()=>{ try{ if(typeof revealButtons === 'function') revealButtons(); }catch(e){} } });
+
   function startReveal(){ let totalDelay = 0; pEls.forEach((p, idx) => { const base = 700; const extra = Math.min(2000, (p.textContent.length || 0) * 12); const revealDelay = base + extra; totalDelay += revealDelay; setTimeout(()=>{ try{ p.style.opacity = '1'; p.style.transform = 'translateY(0)'; }catch(e){} if(idx === pEls.length - 1){ setTimeout(revealButtons, 900); } }, totalDelay); totalDelay += 300; }); if(pEls.length === 0) revealButtons(); }
 
   function revealButtons(){ btnRow.style.display = 'flex'; }
@@ -59,8 +64,12 @@ Both turn to Cree, awaiting his decision.`;
   const btnRow = el('div',{class:'choice-btn-row', style:'display:none;z-index:10040;gap:12px;'},[]);
   const b1 = el('button',{class:'choice-action-btn'},['Return the gold to Curran']);
   const b2 = el('button',{class:'choice-action-btn'},['Keep the gold as your reward']);
-  b1.addEventListener('click', ()=>{ navigate('adventure_daggerford_choice_1_result', { ctx, choice: 'return', resumeCallback: params && params.resumeCallback }); });
-  b2.addEventListener('click', ()=>{ navigate('adventure_daggerford_choice_1_result', { ctx, choice: 'keep', resumeCallback: params && params.resumeCallback }); });
+  b1.addEventListener('click', ()=>{ 
+    navigate('adventure_daggerford_choice_1_result', { ctx, choice: 'return', resumeCallback: params && params.resumeCallback }); 
+  });
+  b2.addEventListener('click', ()=>{ 
+    navigate('adventure_daggerford_choice_1_result', { ctx, choice: 'keep', resumeCallback: params && params.resumeCallback }); 
+  });
   btnRow.appendChild(b1); btnRow.appendChild(b2);
   container.appendChild(btnRow);
 

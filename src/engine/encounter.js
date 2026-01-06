@@ -954,15 +954,19 @@ export function useSummon(state, summonDef, targetIndex=null){
     }
   }
   // mark used or set cooldown
-  if(summonDef.restriction && summonDef.restriction.toLowerCase().includes('once per encounter')){
-    state.summonUsed[id] = true;
-    state.summonCooldowns[id] = 9999;
-  } else if(summonDef.restriction && summonDef.restriction.toLowerCase().includes('once per run')){
-    // mark used for this encounter (persistent run-level tracking handled by caller)
-    state.summonUsed[id] = true;
-    state.summonCooldowns[id] = 9999;
-  } else if(summonDef.cooldown){
-    state.summonCooldowns[id] = summonDef.cooldown;
+  // Skip marking potions as used - they're consumable and handled by potionCounts in main.js
+  const isPotion = (id === 'potion_of_healing' || id === 'potion_of_speed');
+  if(!isPotion){
+    if(summonDef.restriction && summonDef.restriction.toLowerCase().includes('once per encounter')){
+      state.summonUsed[id] = true;
+      state.summonCooldowns[id] = 9999;
+    } else if(summonDef.restriction && summonDef.restriction.toLowerCase().includes('once per run')){
+      // mark used for this encounter (persistent run-level tracking handled by caller)
+      state.summonUsed[id] = true;
+      state.summonCooldowns[id] = 9999;
+    } else if(summonDef.cooldown){
+      state.summonCooldowns[id] = summonDef.cooldown;
+    }
   }
   return { success:true };
 }

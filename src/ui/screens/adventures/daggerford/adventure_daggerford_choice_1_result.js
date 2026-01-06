@@ -1,13 +1,20 @@
 import { el } from '../../../renderer.js';
 import { navigate } from '../../../router.js';
-import { initMusic } from '../../../../engine/helpers.js';
-import { saveMetaIfAllowed } from '../../../../engine/meta.js';
+import { initMusic, disableStateHandlers, restoreStateHandlers } from '../../../../engine/helpers.js';
+import { saveMetaIfAllowed, saveAdventureTemp } from '../../../../engine/meta.js';
 import { splitNarrative } from '../text_split.js';
 import { addMusicControls } from '../../../music-controls.js';
+import { attachCinematicAdvance } from '../cinematic.js';
+import { advanceAdventureStep } from '../../../../engine/adventure-flow.js';
 
 export function renderAdventureDaggerfordChoice1Result(root, params){
   const ctx = (params && params.ctx) ? params.ctx : {};
   const choice = (params && params.choice) ? params.choice : 'keep';
+  
+  // Disable state handlers during cinematic
+  const { prevOnState, prevSetMessage } = disableStateHandlers(ctx);
+  if (ctx) ctx._cinematicActive = true;
+  
   try{ initMusic('town.mp3'); }catch(e){}
 
   const container = el('div',{class:'adventure-cinematic', style:'position:relative;width:100%;height:100%;background:transparent;overflow:visible;color:#fff;display:flex;align-items:center;justify-content:center'},[]);
@@ -93,6 +100,9 @@ The city moves on, indifferent as ever.`;
   textWrap.appendChild(inner);
   container.appendChild(textWrap);
 
+    // Attach left-click advancement helper
+    attachCinematicAdvance(container, pEls, { onComplete: ()=>{ try{ if(typeof revealButtons === 'function') revealButtons(); }catch(e){} } });
+
   function startReveal(){ let totalDelay = 0; pEls.forEach((p, idx) => { const base = 700; const extra = Math.min(2000, (p.textContent.length || 0) * 12); const revealDelay = base + extra; totalDelay += revealDelay; setTimeout(()=>{ try{ p.style.opacity = '1'; p.style.transform = 'translateY(0)'; }catch(e){} if(idx === pEls.length - 1){ setTimeout(revealButtons, 900); } }, totalDelay); totalDelay += 300; }); if(pEls.length === 0) revealButtons(); }
 
   function revealButtons(){ actionBtn.style.display = 'inline-block'; }
@@ -102,23 +112,32 @@ The city moves on, indifferent as ever.`;
     try{
       if(choice === 'return' && ctx && ctx.isAdventure && ctx.meta){
         try{ ctx.meta.ownedSummons = ctx.meta.ownedSummons || []; }catch(e){}
+        try{ ctx.meta.potionCounts = ctx.meta.potionCounts || {}; }catch(e){}
         if(!ctx.meta.ownedSummons.includes('potion_of_healing')){
           try{ ctx.meta.ownedSummons.push('potion_of_healing'); }catch(e){}
-          try{ saveMetaIfAllowed(ctx.meta, ctx); }catch(e){}
-          try{ if(typeof ctx.setMessage === 'function') ctx.setMessage('Received Potion of Healing'); }catch(e){}
         }
+        try{ ctx.meta.potionCounts['potion_of_healing'] = (ctx.meta.potionCounts['potion_of_healing'] || 0) + 1; }catch(e){}
+        try{ saveMetaIfAllowed(ctx.meta, ctx); }catch(e){}
+        try{ if(typeof ctx.setMessage === 'function') ctx.setMessage('Received Potion of Healing (x' + ctx.meta.potionCounts['potion_of_healing'] + ')'); }catch(e){}
       } else if(choice !== 'return' && ctx && ctx.isAdventure && ctx.meta){
         try{ ctx.meta.gold = (typeof ctx.meta.gold === 'number') ? ctx.meta.gold : 0; }catch(e){}
         try{ ctx.meta.gold += 5; }catch(e){}
         try{ saveMetaIfAllowed(ctx.meta, ctx); }catch(e){}
+        // Ensure adventure-temp save updated explicitly
+        try{ saveAdventureTemp(ctx.meta); }catch(e){}
         try{ if(typeof ctx.setMessage === 'function') ctx.setMessage('Gained 5 gold'); }catch(e){}
       }
     }catch(e){}
+    
+    // Restore handlers and clear cinematic flag before navigating
+    try{ restoreStateHandlers(ctx, prevOnState, prevSetMessage); }catch(e){}
+    if (ctx) ctx._cinematicActive = false;
+    
     // Always navigate to the next cinematic scene instead of resuming the battle
     try{ 
       // Clear any stale cinematic callbacks before navigating to prevent auto-resumption
       if(ctx) delete ctx.onCinematicComplete;
-      navigate('adventure_daggerford_scene_2', { ctx }); 
+      navigate('adventure_daggerford_scene_2', { ctx: ctx }); 
     }catch(e){ console.error('Failed to navigate to scene 2:', e); }
   });
 

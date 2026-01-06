@@ -4,6 +4,7 @@ import { initMusic } from '../../../../engine/helpers.js';
 import { AudioManager } from '../../../../engine/audio.js';
 import { splitNarrative } from '../text_split.js';
 import { addMusicControls } from '../../../music-controls.js';
+import { attachCinematicAdvance } from '../cinematic.js';
 
 export function renderAdventureDaggerford(root, ctx = {}){
   const container = el('div',{class:'adventure-cinematic', style:'position:relative;width:100%;height:100%;background:transparent;overflow:visible;color:#fff;display:flex;align-items:center;justify-content:center'},[]);
@@ -55,6 +56,9 @@ Cree is only just beginning his journey, lured to the city by the promise of opp
   });
   textWrap.appendChild(inner);
   container.appendChild(textWrap);
+
+  // Attach left-click advancement helper
+  attachCinematicAdvance(container, pEls, { onComplete: ()=>{ try{ if(typeof revealContinue === 'function') revealContinue(); }catch(e){} } });
 
   // Reveal paragraphs sequentially with a variable delay per paragraph
   function startReveal(){

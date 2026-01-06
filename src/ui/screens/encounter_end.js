@@ -1,12 +1,16 @@
 import { el } from '../renderer.js';
 import { AudioManager } from '../../engine/audio.js';
-import { initMusic } from '../../engine/helpers.js';
+import { initMusic, disableStateHandlers, restoreStateHandlers } from '../../engine/helpers.js';
 import { addMusicControls } from '../music-controls.js';
 
 export function renderEncounterEnd(root, ctx){
   const enemy = ctx.enemy || {};
   const enemyId = enemy.id || enemy.name || 'Enemy';
   const enemyName = enemy.name || enemyId;
+
+  // Ensure state handlers are disabled while this encounter-end screen
+  // is visible so background updates can't force a return to the battle.
+  const { prevOnState, prevSetMessage } = disableStateHandlers(ctx);
 
   // Play victory music for encounter completion (stop previous music first)
   try{
@@ -53,6 +57,7 @@ export function renderEncounterEnd(root, ctx){
     clicked = true;
     cont.disabled = true;
     cont.style.opacity = '0.5';
+    
     // restore volume if we reduced it for the victory track
     try{
       if(typeof ctx._victoryPrevVol !== 'undefined'){
@@ -60,10 +65,13 @@ export function renderEncounterEnd(root, ctx){
         delete ctx._victoryPrevVol;
       }
     }catch(e){}
-    // small delay before continuing to ensure UI state is settled
-    setTimeout(()=>{
-      if(ctx.onContinue) ctx.onContinue();
-    }, 100);
+    
+    // CRITICAL: Do NOT restore state handlers here!
+    // Leave them suppressed and let the next screen handle its own state management.
+    // This prevents any pending callbacks from firing during navigation.
+    if(ctx.onContinue) {
+      ctx.onContinue();
+    }
   });
   btnRow.appendChild(cont);
   container.appendChild(btnRow);

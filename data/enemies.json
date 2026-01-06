@@ -266,7 +266,7 @@
   {
     "name": "Thug",
     "ip_reward": 0,
-    "hp": 32,
+    "hp": 2,
     "id": "thug",
     "attacks": [
       {
@@ -288,6 +288,37 @@
         "type": "single",
         "dmg": 2,
         "hitChance": 0.95,
+        "critChance": 0.0
+      }
+    ]
+  },
+  {
+    "name": "Szass Tam",
+    "ip_reward": 0,
+    "hp": 87,
+    "id": "szass_tam_daggerford_adventure",
+    "imageOverride": "assets/szass_tam.png",
+    "attacks": [
+      {
+        "name": "Paralyzing Touch",
+        "type": "single",
+        "dmg": 4,
+        "hitChance": 0.95,
+        "critChance": 0.05,
+        "effect": "stun"
+      },
+      {
+        "name": "Lightning Bolt",
+        "type": "aoe",
+        "dmg": 3,
+        "hitChance": 1.0,
+        "critChance": 0.0
+      },
+      {
+        "name": "Cone of Cold",
+        "type": "aoe",
+        "dmg": 5,
+        "hitChance": 1.0,
         "critChance": 0.0
       }
     ]

@@ -3,6 +3,8 @@ import { navigate } from '../../../router.js';
 import { initMusic } from '../../../../engine/helpers.js';
 import { splitNarrative } from '../text_split.js';
 import { addMusicControls } from '../../../music-controls.js';
+import { attachCinematicAdvance } from '../cinematic.js';
+import { advanceAdventureStep } from '../../../../engine/adventure-flow.js';
 
 export function renderAdventureDaggerfordChoice2(root, params){
   const ctx = (params && params.ctx) ? params.ctx : {};
@@ -21,18 +23,18 @@ export function renderAdventureDaggerfordChoice2(root, params){
   setTimeout(()=>{ try{ overlay.style.opacity = '1'; }catch(e){} }, 2200);
 
   // Cree portrait (left)
-  const cree = el('img',{src:'assets/cree_teen.png', alt:'Cree', style:'position:absolute;left:8%;bottom:-100%;z-index:7;max-height:50vh;width:auto;opacity:0;transition:opacity 2000ms ease;pointer-events:none'});
+  const cree = el('img',{src:'assets/cree_teen.png', alt:'Cree', style:'position:absolute;left:8%;bottom:-105%;z-index:7;max-height:50vh;width:auto;opacity:0;transition:opacity 2000ms ease;pointer-events:none'});
   cree.addEventListener('error', ()=>{ cree.style.display='none'; });
   cree.addEventListener('load', ()=>{ setTimeout(()=>{ try{ cree.style.opacity = '0.9'; }catch(e){} }, 2400); });
   container.appendChild(cree);
 
   // Companion portraits (Shalendra, Volo) — same vertical alignment as Cree
-  const shalendra = el('img',{src:'assets/shalendra.png', alt:'Shalendra', style:'position:absolute;left:64%;bottom:-100%;z-index:7;max-height:50vh;width:auto;opacity:0;transition:opacity 2000ms ease;pointer-events:none'});
+  const shalendra = el('img',{src:'assets/shalendra.png', alt:'Shalendra', style:'position:absolute;left:64%;bottom:-105%;z-index:7;max-height:50vh;width:auto;opacity:0;transition:opacity 2000ms ease;pointer-events:none'});
   shalendra.addEventListener('error', ()=>{ shalendra.style.display='none'; });
   shalendra.addEventListener('load', ()=>{ setTimeout(()=>{ try{ shalendra.style.opacity = '0.9'; }catch(e){} }, 2400); });
   container.appendChild(shalendra);
 
-  const volo = el('img',{src:'assets/volo.png', alt:'Volo', style:'position:absolute;left:90%;bottom:-100%;z-index:7;max-height:30vh;width:auto;opacity:0;transition:opacity 2000ms ease;pointer-events:none'});
+  const volo = el('img',{src:'assets/volo.png', alt:'Volo', style:'position:absolute;left:90%;bottom:-105%;z-index:7;max-height:30vh;width:auto;opacity:0;transition:opacity 2000ms ease;pointer-events:none'});
   volo.addEventListener('error', ()=>{ volo.style.display='none'; });
   volo.addEventListener('load', ()=>{ setTimeout(()=>{ try{ volo.style.opacity = '0.9'; }catch(e){} }, 2400); });
   container.appendChild(volo);
@@ -74,8 +76,8 @@ export function renderAdventureDaggerfordChoice2(root, params){
   const text = `
 The Red Wizard staggers backward, his spell focus clattering to the floor. The necromantic energy that once surrounded him fades, leaving only exhaustion and fear.|
 He looks up at Cree, bloodied but alive.|
-“It’s over,” he mutters. “Szass Tam is gone. I see that now.”|
-A heavy pouch of gold hangs at his belt—undoubtedly taken from raids, bribes, and darker acts. The tavern’s warmth feels distant here, replaced by the weight of consequence.|
+“I serve the great Szass Tam,” he mutters. “Kill me if you must.”|
+A heavy pouch of gold hangs at his belt — undoubtedly taken from raids, bribes, and darker acts. The tavern’s warmth feels distant here, replaced by the weight of consequence.|
 Shalendra watches silently, hand on her blade. Volo adjusts his hat, saying nothing—for once.|
 The wizard lowers his head and waits.
 `;
@@ -84,6 +86,9 @@ The wizard lowers his head and waits.
   textWrap.appendChild(inner);
   container.appendChild(textWrap);
 
+  // Attach left-click advancement helper
+  attachCinematicAdvance(container, pEls, { onComplete: ()=>{ try{ if(typeof revealContinue === 'function') revealContinue(); }catch(e){} try{ if(typeof revealButtons === 'function') revealButtons(); }catch(e){} } });
+
   function startReveal(){ let totalDelay = 0; pEls.forEach((p, idx) => { const base = 700; const extra = Math.min(2000, (p.textContent.length || 0) * 12); const revealDelay = base + extra; totalDelay += revealDelay; setTimeout(()=>{ try{ p.style.opacity = '1'; p.style.transform = 'translateY(0)'; }catch(e){} if(idx === pEls.length - 1){ setTimeout(revealButtons, 900); } }, totalDelay); totalDelay += 300; }); if(pEls.length === 0) revealButtons(); }
 
   function revealButtons(){ btnRow.style.display = 'flex'; }
@@ -91,8 +96,22 @@ The wizard lowers his head and waits.
   const btnRow = el('div',{class:'choice-btn-row', style:'display:none;z-index:10040;gap:12px;'},[]);
   const bLive = el('button',{class:'choice-action-btn'},['Let him live']);
   const bKill = el('button',{class:'choice-action-btn'},['Kill him']);
-  bLive.addEventListener('click', ()=>{ try{ ctx.choice = 'live'; navigate('adventure_daggerford_choice_2_result', { ctx, choice: 'live' }); }catch(e){ try{ navigate('adventure_daggerford_choice_2_result', { ctx, choice: 'live' }); }catch(e){} } });
-  bKill.addEventListener('click', ()=>{ try{ ctx.choice = 'kill'; navigate('adventure_daggerford_choice_2_result', { ctx, choice: 'kill' }); }catch(e){ try{ navigate('adventure_daggerford_choice_2_result', { ctx, choice: 'kill' }); }catch(e){} } });
+  bLive.addEventListener('click', ()=>{ 
+    try{ 
+      ctx.choice = 'live'; 
+      navigate('adventure_daggerford_choice_2_result', { ctx, choice: 'live' }); 
+    }catch(e){ 
+      try{ navigate('adventure_daggerford_choice_2_result', { ctx, choice: 'live' }); }catch(e){} 
+    } 
+  });
+  bKill.addEventListener('click', ()=>{ 
+    try{ 
+      ctx.choice = 'kill'; 
+      navigate('adventure_daggerford_choice_2_result', { ctx, choice: 'kill' }); 
+    }catch(e){ 
+      try{ navigate('adventure_daggerford_choice_2_result', { ctx, choice: 'kill' }); }catch(e){} 
+    } 
+  });
   btnRow.appendChild(bLive);
   btnRow.appendChild(bKill);
   container.appendChild(btnRow);

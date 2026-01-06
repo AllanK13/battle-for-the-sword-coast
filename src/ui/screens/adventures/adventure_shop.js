@@ -2,11 +2,33 @@ import { el } from '../../renderer.js';
 import { navigate } from '../../router.js';
 import { initMusic } from '../../../engine/helpers.js';
 import { addMusicControls } from '../../music-controls.js';
+import { advanceAdventureStep } from '../../../engine/adventure-flow.js';
 
 // params: { ctx, shop }
 export function renderAdventureShop(root, params = {}){
   const ctx = (params && params.ctx) ? params.ctx : (params || {});
-  const shopFlag = (params && params.shop) ? params.shop : (ctx && ctx.shop) ? ctx.shop : null;
+  // Ensure ctx.data is populated if caller passed top-level `data` param
+  try{ if((!ctx || !ctx.data) && params && params.data) ctx.data = params.data; }catch(e){}
+  const shopFlag = (params && params.shop)
+    ? params.shop
+    : (ctx && ctx.shop)
+    ? ctx.shop
+    : (ctx && ctx.meta && ctx.meta.adventureProgress && ctx.meta.adventureProgress.adventureId)
+    ? ctx.meta.adventureProgress.adventureId
+    : null;
+  
+  // Validate and fix the adventure progress index if needed
+  // This screen is 'adventure_shop' which should be at index 9 in the daggerford flow
+  try{
+    if(ctx && ctx.meta && ctx.meta.adventureProgress && ctx.meta.adventureProgress.adventureId === 'daggerford'){
+      const currentIdx = ctx.meta.adventureProgress.index;
+      // If we're not at index 9 (adventure_shop step), fix it
+      if(currentIdx !== 9){
+        ctx.meta.adventureProgress.index = 9;
+      }
+    }
+  }catch(e){}
+  
   try{ initMusic('town.mp3'); }catch(e){}
   const container = el('div',{class:'adventure-cinematic', style:'position:relative;width:100%;height:100%;background:transparent;overflow:visible;color:#fff;display:flex;align-items:center;justify-content:center'},[]);
 
@@ -23,7 +45,9 @@ export function renderAdventureShop(root, params = {}){
   btn.addEventListener('click', ()=>{
     try{
       if(shopFlag === 'daggerford'){
-        navigate('daggerford_shop', { ctx, shop: 'daggerford' });
+        // Advance to the next shop step in the adventure flow
+        try{ advanceAdventureStep(ctx); }catch(e){}
+        navigate('adventure_daggerford_shop', { ctx, shop: 'daggerford', data: ctx && ctx.data });
       } else {
         navigate('arcade_upgrades', { data: ctx.data, meta: ctx.meta, buyLegendary: ctx.buyLegendary, setMessage: ctx.setMessage, isAdventure: ctx.isAdventure });
       }

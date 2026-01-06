@@ -1,4 +1,6 @@
 import { el } from '../renderer.js';
+import { initMusic } from '../../engine/helpers.js';
+import { AudioManager } from '../../engine/audio.js';
 import { addMusicControls } from '../music-controls.js';
 
 export function renderMenu(root, ctx={}){
@@ -40,7 +42,8 @@ export function renderMenu(root, ctx={}){
   btnWrap.appendChild(campaignBtn);
   container.appendChild(btnWrap);
 
-  // Add music controls
+  // Start menu music and add music controls
+  try{ initMusic('menu.mp3', { autoplay: true, loop: true }); try{ AudioManager && AudioManager.play && AudioManager.play(); }catch(e){} }catch(e){}
   addMusicControls(container);
 
   root.appendChild(container);

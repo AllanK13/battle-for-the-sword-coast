@@ -55,6 +55,7 @@ import {
   updateEnemyCount,
   flushEnemyLowestHP
 } from './engine/helpers.js';
+import { getNextStep, advanceAdventureStep } from './engine/adventure-flow.js';
 
 const data = {};
 let meta = loadMeta();
@@ -137,6 +138,10 @@ function createEncounterSession(enemyIndex, chosenIds, rng){
   const ctx = {
     data, meta,
     encounter,
+    // preserve the initial chosen ids for this session so adventure screens can
+    // build decks deterministically without reading global/persisted meta.
+    _initialChosen: chosen.slice(),
+    _debug_initialDeck: (deck && deck.hand && deck.hand.map(c=>c && c.id)) || [],
     message: '',
     messageHistory: [],
     setMessage(msg, timeout=3000){
@@ -152,16 +157,20 @@ function createEncounterSession(enemyIndex, chosenIds, rng){
     dismissMessage(){ ctx.message=''; if(typeof ctx.onStateChange === 'function') ctx.onStateChange(); },
     clearMessageHistory(){ ctx.messageHistory = []; if(typeof ctx.onStateChange === 'function') ctx.onStateChange(); },
     // Notify UI to re-render the battle screen when state changes.
-    onStateChange(){ navigate('battle', ctx); },
-    placeHero(card){return handlePlaceHero(encounter, ctx, card); },
+    onStateChange(){ 
+      // Guard: ignore state changes during cinematics
+      if (ctx._cinematicActive) return;
+      navigate('battle', ctx); 
+    },
+    placeHero(card){return handlePlaceHero(ctx.encounter || encounter, ctx, card); },
     placeHeroAt(slot, card){
-      const res = placeHero(encounter, slot, card);
+      const res = placeHero(ctx.encounter || encounter, slot, card);
       if(res.success){ if(ctx.setMessage) ctx.setMessage('Placed '+(card.name||card.id)+' in space '+(res.slot+1)); }
       else { if(ctx.setMessage) ctx.setMessage(res.reason||'Place failed'); }
       return res;
     },
     playHeroAttack(slot){
-      const res = playHeroAttack(encounter, slot);
+      const res = playHeroAttack(ctx.encounter || encounter, slot);
       if(!res.success){ if(ctx.setMessage) ctx.setMessage(res.reason||'Attack failed'); }
       else {
         // derive friendly hero and enemy names for messages
@@ -183,19 +192,19 @@ function createEncounterSession(enemyIndex, chosenIds, rng){
       return res;
     },
     playHeroAction(slot, targetIndex, abilityIndex){
-      return handlePlayHeroAction(encounter, ctx, slot, targetIndex, abilityIndex);
+      return handlePlayHeroAction(ctx.encounter || encounter, ctx, slot, targetIndex, abilityIndex);
     },
     defendHero(slot){
-      const res = defendHero(encounter, slot);
+      const res = defendHero(ctx.encounter || encounter, slot);
       if(!res.success){ if(ctx.setMessage) ctx.setMessage(res.reason||'Defend failed'); }
       else {
-        const heroName = getHeroName(encounter.playfield[slot], slot);
+        const heroName = getHeroName((ctx.encounter || encounter).playfield[slot], slot);
         if(ctx.setMessage) ctx.setMessage(heroName+' is dodging');
       }
       return res;
     },
     replaceHero(slot, card){
-      const res = replaceHero(encounter, slot, card);
+      const res = replaceHero(ctx.encounter || encounter, slot, card);
       if(!res.success) { if(ctx.setMessage) ctx.setMessage(res.reason||'Replace failed'); }
       else { if(ctx.setMessage) ctx.setMessage('Replaced space '+(slot+1)+' with '+(card.name||card.id)); }
       return res;
@@ -204,11 +213,28 @@ function createEncounterSession(enemyIndex, chosenIds, rng){
       // look for the summon in regular summons first, then in legendary pool
       let s = (data.summons||[]).find(x=>x.id===id);
       if(!s) s = (data.legendary||[]).find(x=>x.id===id);
-      // Enforce once-per-run restriction using persisted meta.summonUsage
+      // Check if this is a consumable potion
+      const isPotion = (id === 'potion_of_healing' || id === 'potion_of_speed');
+      
+      // Use ctx.meta instead of closure meta to ensure we modify the correct object
+      // (important for adventure mode where ctx.meta may be replaced)
+      const activeMeta = ctx.meta || meta;
+      
+      // For potions, check if player has any remaining
+      if(isPotion){
+        activeMeta.potionCounts = activeMeta.potionCounts || {};
+        const remaining = activeMeta.potionCounts[id] || 0;
+        if(remaining <= 0){
+          if(ctx.setMessage) ctx.setMessage('No ' + (s.name || id) + ' remaining');
+          return { success:false, reason:'no_charges' };
+        }
+      }
+      
+      // Enforce once-per-run restriction using persisted meta.summonUsage (skip for potions)
       try{
-        if(s && s.restriction && s.restriction.toLowerCase().includes('once per run')){
-          meta.summonUsage = meta.summonUsage || {};
-          if(meta.summonUsage[s.id] && meta.summonUsage[s.id] > 0){
+        if(!isPotion && s && s.restriction && s.restriction.toLowerCase().includes('once per run')){
+          activeMeta.summonUsage = activeMeta.summonUsage || {};
+          if(activeMeta.summonUsage[s.id] && activeMeta.summonUsage[s.id] > 0){
             const msg = 'Summon \'' + (s.name||s.id) + '\' is only usable once per run';
             if(ctx.setMessage) ctx.setMessage(msg);
             return { success:false };
@@ -221,12 +247,30 @@ function createEncounterSession(enemyIndex, chosenIds, rng){
       // track summon usage (use the passed `id` as a reliable key)
       try{
         if(r && r.success && id){
-          meta.summonUsage = meta.summonUsage || {};
-          meta.summonUsage[id] = (meta.summonUsage[id] || 0) + 1;
+          // Don't track potions in summonUsage since they use potionCounts instead
+          if(!isPotion){
+            activeMeta.summonUsage = activeMeta.summonUsage || {};
+            activeMeta.summonUsage[id] = (activeMeta.summonUsage[id] || 0) + 1;
+          }
           // also record cumulative usage separately for Stats
-          meta.totalSummonUsage = meta.totalSummonUsage || {};
-          meta.totalSummonUsage[id] = (meta.totalSummonUsage[id] || 0) + 1;
-          try{ saveMetaIfAllowed(meta, ctx); }catch(e){}
+          activeMeta.totalSummonUsage = activeMeta.totalSummonUsage || {};
+          activeMeta.totalSummonUsage[id] = (activeMeta.totalSummonUsage[id] || 0) + 1;
+          // Handle potion count decrement (for consumable potions)
+          if(isPotion){
+            activeMeta.potionCounts = activeMeta.potionCounts || {};
+            if(activeMeta.potionCounts[id] && activeMeta.potionCounts[id] > 0){
+              activeMeta.potionCounts[id] -= 1;
+              // Remove from ownedSummons if quantity reaches 0
+              if(activeMeta.potionCounts[id] <= 0){
+                delete activeMeta.potionCounts[id];
+                if(Array.isArray(activeMeta.ownedSummons)){
+                  const idx = activeMeta.ownedSummons.indexOf(id);
+                  if(idx !== -1) activeMeta.ownedSummons.splice(idx, 1);
+                }
+              }
+            }
+          }
+          try{ saveMetaIfAllowed(activeMeta, ctx); }catch(e){}
         }
       }catch(e){ /* ignore */ }
       return r;
@@ -415,43 +459,64 @@ function createEncounterSession(enemyIndex, chosenIds, rng){
                 return;
               } else {
                 // no more enemies -> end run
-                try{ updateMetaStat(meta, 'runs', (meta.runs||0) + 1, ctx); saveMetaIfAllowed(meta, ctx); }catch(e){}
-                const endCtx = { data, runSummary, showIp: true, onRestart: ()=>{ try{ meta.summonUsage = {}; try{ saveMetaIfAllowed(meta, ctx); }catch(e){} }catch(e){}; navigate('arcade_start'); } };
-                // prevent any pending timeouts or future onStateChange calls from re-rendering the battle
+                
+                // For adventure mode, check if there's a next step in the flow (e.g., victory screen)
                 if(ctx && ctx.isAdventure){
+                  try{
+                    const nextStep = advanceAdventureStep(ctx);
+                    if(nextStep){
+                      // Navigate to the next step in the adventure flow (likely victory screen)
+                      disableStateHandlers(ctx);
+                      navigate(nextStep.id, { ctx, encounter, runSummary });
+                      return;
+                    }
+                  }catch(e){
+                    console.error('[Adventure Flow] Error advancing to next step after final battle:', e);
+                  }
+                  // If no next step or error, fallback to adventure start
                   disableStateHandlers(ctx);
                   navigate('adventure_start');
                   return;
                 }
+                
+                // For arcade mode, show end screen
+                try{ updateMetaStat(meta, 'runs', (meta.runs||0) + 1, ctx); saveMetaIfAllowed(meta, ctx); }catch(e){}
+                const endCtx = { data, runSummary, showIp: true, onRestart: ()=>{ try{ meta.summonUsage = {}; try{ saveMetaIfAllowed(meta, ctx); }catch(e){} }catch(e){}; navigate('arcade_start'); } };
                 disableStateHandlers(ctx);
                 navigate('arcade_end', endCtx);
                 return;
               }
             };
 
-            // If this is an adventure and the defeated enemy is a thug, route to the choice cinematic
+            // If this is an adventure, check the flow for what comes next after this battle
             try{
               if(ctx && ctx.isAdventure){
-                const key = getEnemyKey(encounter.enemy);
-                if(key === 'thug'){
-                  // navigate to the choice cinematic and pass the resume callback
-                  navigate('adventure_daggerford_choice_1', { ctx, encounter, runSummary, resumeCallback: continueAfterCinematic });
-                  return;
-                }
-                if(key === 'red_wizard'){
-                  // after defeating the Red Wizard, show the second Daggerford choice cinematic
-                  navigate('adventure_daggerford_choice_2', { ctx, encounter, runSummary, resumeCallback: continueAfterCinematic });
-                  return;
-                }
-                if(key === 'szass_tam'){
-                  // After defeating Szass Tam in the Daggerford adventure, show victory screen
-                  navigate('adventure_daggerford_victory', { ctx, encounter, runSummary });
+                // Check if there's a special post-battle step (choice, scene, shop, victory, etc.)
+                const nextStep = getNextStep(ctx);
+                
+                if (nextStep && nextStep.type !== 'battle') {
+                  // Next step is a cinematic/choice/shop/victory - skip encounter_end screen entirely
+                  // CRITICAL: Keep cinematic flag active to prevent any onStateChange calls from navigating to battle
+                  ctx._cinematicActive = true;
+                  
+                  // Advance the adventure step before navigating and use the returned current step
+                  const currentStep = advanceAdventureStep(ctx);
+                  
+                  // Navigate directly without showing encounter end screen
+                  // Record this enemy as defeated in the run summary before moving to the next step
+                  try{ const enemyKey = getEnemyKey(encounter.enemy); if(enemyKey && Array.isArray(runSummary.defeated)) runSummary.defeated.push(enemyKey); }catch(e){}
+                  // Use the step returned by advanceAdventureStep (current step after advance)
+                  const targetId = (currentStep && currentStep.id) || nextStep.id;
+                  navigate(targetId, { ctx, encounter, runSummary });
                   return;
                 }
               }
-            }catch(e){ /* fall through to normal continuation */ }
+            }catch(e){ 
+              console.error('[Adventure Flow] Error checking post-battle step:', e);
+              /* fall through to normal continuation */ 
+            }
 
-            // Default: proceed with original continuation
+            // Default: proceed with original continuation (show encounter_end screen)
             continueAfterCinematic();
           }
         };
@@ -707,7 +772,7 @@ function appStart(){
 
   register('adventure_shop', (root, params)=>{
     initMusic('town.mp3');
-    return renderAdventureShop(root, params && params.ctx ? params.ctx : (params||{}));
+    return renderAdventureShop(root, params || {});
   });
 
   register('adventure_daggerford_shop', (root, params)=>{
@@ -730,18 +795,29 @@ function appStart(){
           data, meta,
           onCinematicComplete: ()=>{
             // Prepare a session-local meta so Adventure runs don't touch the global save
-            // Provide starter cards and summons for the adventure session only
+            // Create a CLEAN meta specifically for this adventure run - don't inherit from global save
             try{ /* session variable will be created after createEncounterSession */ }catch(e){}
             // Create RNG and start the first encounter with chosen heroes
             try{
               const rng = createRNG();
               const chosen = ['cree_teen','shalendra'];
+              // Create a fresh adventure-only meta with ONLY the starter cards/summons
+              const adventureMeta = {
+                ownedCards: ['cree_teen', 'shalendra'],
+                ownedSummons: ['garon', 'durnan', 'volo'],
+                ownedLegendary: [],
+                gold: 0,
+                potionCounts: {},
+                apPerTurn: 3,
+                partySlots: 3,
+                adventureProgress: { adventureId: 'daggerford', index: 1 }
+              };
               const session = createEncounterSession(0, chosen, rng);
+              // Replace the global meta with our clean adventure meta
+              try{ session.ctx.meta = adventureMeta; }catch(e){}
               // mark this session as an adventure so screens can avoid writing global save
               try{ session.ctx.isAdventure = true; }catch(e){}
-              try{ session.ctx.meta = session.ctx.meta || {}; session.ctx.meta.ownedCards = session.ctx.meta.ownedCards || []; if(!session.ctx.meta.ownedCards.includes('cree_teen')) session.ctx.meta.ownedCards.push('cree_teen'); if(!session.ctx.meta.ownedCards.includes('shalendra')) session.ctx.meta.ownedCards.push('shalendra'); }catch(e){}
-              try{ session.ctx.meta.ownedSummons = session.ctx.meta.ownedSummons || []; ['garon','durnan','volo'].forEach(id=>{ if(!session.ctx.meta.ownedSummons.includes(id)) session.ctx.meta.ownedSummons.push(id); }); }catch(e){}
-              try{ session.ctx.meta.gold = (typeof session.ctx.meta.gold === 'number') ? session.ctx.meta.gold : 0; }catch(e){}
+              try{ session.ctx.data = data; }catch(e){}
               // persist the initial adventure session meta to the temporary adventure save
               try{ saveMetaIfAllowed(session.ctx.meta, session.ctx); }catch(e){}
               // Attach a persistent enemy sequence for the cinematic: three thugs in a row

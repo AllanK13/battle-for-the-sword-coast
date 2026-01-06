@@ -111,17 +111,18 @@ export function renderBattle(root, ctx){
   // when available (created by the encounter session); clear `ctx.recruit`
   // afterwards to avoid duplicate placements on re-render.
   try{
-    if(ctx && ctx.recruit && typeof ctx.placeHeroAt === 'function' && ctx.encounter){
+    if(ctx && ctx.recruit && ctx.encounter && ctx.encounter.deck){
       const id = String(ctx.recruit);
-      let allCards = (ctx.data && Array.isArray(ctx.data.cards)) ? ctx.data.cards.slice() : [];
-      try{ if(ctx.data && Array.isArray(ctx.data.legendary)) allCards = allCards.concat(ctx.data.legendary); }catch(e){}
-      const card = allCards.find(c => c && c.id === id);
-      if(card){
-        const slot = [0,1,2].find(i => !ctx.encounter.playfield[i]);
-        if(typeof slot === 'number'){
-          try{ ctx.placeHeroAt(slot, card); }catch(e){}
+      try{
+        // Add the recruited card to the encounter deck hand if not already present.
+        const inHand = Array.isArray(ctx.encounter.deck.hand) && ctx.encounter.deck.hand.some(c => c && c.id === id);
+        if(!inHand){
+          let allCards = (ctx.data && Array.isArray(ctx.data.cards)) ? ctx.data.cards.slice() : [];
+          try{ if(ctx.data && Array.isArray(ctx.data.legendary)) allCards = allCards.concat(ctx.data.legendary); }catch(e){}
+          const card = allCards.find(c => c && c.id === id);
+          if(card){ try{ ctx.encounter.deck.hand.push(card); }catch(e){} }
         }
-      }
+      }catch(e){}
       try{ delete ctx.recruit; }catch(e){}
     }
   }catch(e){}
@@ -250,11 +251,13 @@ export function renderBattle(root, ctx){
     summonsWrap.appendChild(el('h3',{class:'summons-title'},['Summons']));
     const sGrid = el('div',{class:'card-grid summons-small'});
     const ownedSummons = (ctx.meta && Array.isArray(ctx.meta.ownedSummons)) ? ctx.meta.ownedSummons : [];
+    const ownedLegendary = (ctx.meta && Array.isArray(ctx.meta.ownedLegendary)) ? ctx.meta.ownedLegendary : [];
+    const allOwned = ([]).concat(ownedSummons, ownedLegendary);
     // include legendary summons in the available pool if purchased
     let allSummons = ([]).concat(ctx.data.summons || [], ctx.data.legendary || []);
     // allow session to disable legendary summons (e.g., adventure cinematics)
     try{ if(ctx && ctx.disableLegendarySummons){ allSummons = ([]).concat(ctx.data.summons || []); } }catch(e){}
-    const availableSummons = allSummons.filter(s => ownedSummons.includes(s.id));
+    const availableSummons = allSummons.filter(s => allOwned.includes(s.id));
     if(availableSummons.length === 0){
       sGrid.appendChild(el('div',{class:'muted'},['No summons available']));
     }
@@ -265,7 +268,24 @@ export function renderBattle(root, ctx){
       const sCard = cardTile(s, sOpts);
       // shrink Blackrazor image in the summons panel by tagging the card
       if(s && s.id === 'blackrazor'){ try{ sCard.classList.add('blackrazor'); }catch(e){} }
-      const used = ctx.encounter.summonUsed && ctx.encounter.summonUsed[s.id];
+      
+      // Add quantity badge for potions
+      try{
+        const potionCounts = (ctx.meta && ctx.meta.potionCounts) ? ctx.meta.potionCounts : {};
+        if(potionCounts[s.id] && potionCounts[s.id] > 0){
+          const qtyBadge = el('div', {class:'temp-hp-badge', style:'position:absolute;top:8px;left:8px;background:rgba(30,144,255,0.95);color:#fff;padding:4px 8px;border-radius:6px;font-weight:bold;font-size:14px;z-index:10;box-shadow:0 2px 4px rgba(0,0,0,0.3)'}, ['x' + potionCounts[s.id]]);
+          sCard.style.position = 'relative';
+          sCard.appendChild(qtyBadge);
+        }
+      }catch(e){}
+      
+      // For potions, check quantity instead of summonUsed
+      const isPotion = (s.id === 'potion_of_healing' || s.id === 'potion_of_speed');
+      const potionCounts = (ctx.meta && ctx.meta.potionCounts) ? ctx.meta.potionCounts : {};
+      const potionQty = isPotion ? (potionCounts[s.id] || 0) : 0;
+      const potionDepleted = isPotion && potionQty <= 0;
+      
+      const used = !isPotion && ctx.encounter.summonUsed && ctx.encounter.summonUsed[s.id];
       const cd = ctx.encounter.summonCooldowns && (ctx.encounter.summonCooldowns[s.id]||0);
       // also consider once-per-run usage persisted in meta so legendary summons remain disabled across fights
       let usedForRun = false;
@@ -275,9 +295,9 @@ export function renderBattle(root, ctx){
           if(mu && mu > 0) usedForRun = true;
         }
       }catch(e){}
-      const btnLabel = used ? 'Used' : (usedForRun ? 'Used (run)' : (cd>0 ? 'Cooldown: '+cd : 'Cast'));
+      const btnLabel = potionDepleted ? 'Empty' : (used ? 'Used' : (usedForRun ? 'Used (run)' : (cd>0 ? 'Cooldown: '+cd : 'Cast')));
       const btn = el('button',{class:'btn'},[ btnLabel ]);
-      if(used || usedForRun || cd>0) btn.setAttribute('disabled','');
+      if(potionDepleted || used || usedForRun || cd>0) btn.setAttribute('disabled','');
       btn.addEventListener('click',()=>{
         // prefer structured ability definition on summons too, fallback to legacy
         const sPrimary = (s && Array.isArray(s.abilities) && s.abilities.length>0) ? (s.abilities.find(a=>a.primary) || s.abilities[0]) : null;
@@ -290,7 +310,14 @@ export function renderBattle(root, ctx){
           return;
         }
         const res = ctx.useSummon(s.id);
-        if(res && res.success){ ctx.onStateChange(); }
+        if(res && res.success){
+          const isPotionClick = (s.id === 'potion_of_healing' || s.id === 'potion_of_speed');
+          if(isPotionClick && typeof ctx.refreshSummons === 'function'){
+            try{ ctx.refreshSummons(); }catch(e){ if(typeof ctx.onStateChange === 'function') ctx.onStateChange(); }
+          } else if(typeof ctx.onStateChange === 'function'){
+            ctx.onStateChange();
+          }
+        }
       });
       // insert the Cast button above the card content
       sCard.insertBefore(btn, sCard.firstChild);
@@ -889,6 +916,20 @@ export function renderBattle(root, ctx){
   enemyArea.appendChild(endTurn);
   // append summons area last so it appears below everything else on screen
   panel.appendChild(createSummons());
+
+  // Provide a lightweight partial-update hook so callers can refresh only the
+  // summons area (used to avoid a full navigate('battle') re-render when
+  // consumable potions are used).
+  try{
+    ctx.refreshSummons = function(){
+      try{
+        const old = panel.querySelector('.summons-wrap');
+        const nw = createSummons();
+        if(old && old.parentNode){ old.parentNode.replaceChild(nw, old); }
+        else { panel.appendChild(nw); }
+      }catch(e){ /* best-effort: ignore failures */ }
+    };
+  }catch(e){}
 
   // Spacebar -> End Turn (only while this battle panel is connected)
   (function setupSpacebar(){
