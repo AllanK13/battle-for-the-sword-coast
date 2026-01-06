@@ -68,7 +68,13 @@ export function saveAdventureTemp(meta){
 }
 
 export function loadAdventureTemp(){
-  try{ const raw = localStorage.getItem(ADVENTURE_TEMP_KEY); if(!raw) return null; return JSON.parse(raw); }catch(e){ return null; }
+  try{
+    const raw = localStorage.getItem(ADVENTURE_TEMP_KEY);
+    if(!raw) return null;
+    const parsed = JSON.parse(raw);
+    try{ if(parsed && typeof parsed === 'object') delete parsed.debugEnabled; }catch(e){}
+    return parsed;
+  }catch(e){ return null; }
 }
 
 export function deleteAdventureTemp(){
@@ -80,6 +86,7 @@ export function loadMeta(){
     const raw = localStorage.getItem(STORAGE_KEY);
     if(!raw) return createMeta();
     const parsed = JSON.parse(raw);
+    try{ if(parsed && typeof parsed === 'object') delete parsed.debugEnabled; }catch(e){}
     return Object.assign(createMeta(), parsed);
   }catch(e){ return createMeta(); }
 }
@@ -146,7 +153,9 @@ export function loadSlot(slotIndex){
     if(!slotIndex || slotIndex < 1 || slotIndex > 3) return null;
     const raw = localStorage.getItem(SLOT_KEY_PREFIX + String(slotIndex));
     if(!raw) return null;
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    try{ if(parsed && parsed.meta && typeof parsed.meta === 'object') delete parsed.meta.debugEnabled; }catch(e){}
+    return parsed;
   }catch(e){ return null; }
 }
 
